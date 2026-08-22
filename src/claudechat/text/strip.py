@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import re
 
-_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)")
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\x80-\x9f]")
+_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x9b[0-9;?]*[ -/]*[@-~]|\x9d[^\x07\x9b]*(\x07|\x9b)")
 _WHITESPACE_CONTROL = re.compile(r"[\n\r\t]+")
 
-_FENCE = re.compile(r"^\s*```")
+_FENCE = re.compile(r"^\s*(`{3}|~{3})")
 _URL = re.compile(r"https?://\S+|www\.\S+")
 _TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+")
 _LIST_MARKER = re.compile(r"^\s*([-*+]|\d+[.)])\s+")
-_EMPHASIS = re.compile(r"(\*\*|__|\*|_|~~)")
+_EMPHASIS = re.compile(r"(\*\*|__|\*|~~|(?<!\w)_|_(?!\w))")
 _INLINE_CODE = re.compile(r"`([^`]*)`")
 _LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 
@@ -33,6 +33,7 @@ class SpeechStripper:
     def __init__(self) -> None:
         self._buffer = ""
         self._in_fence = False
+        self._fence_char: str | None = None
 
     def feed(self, fragment: str) -> str:
         self._buffer += fragment
@@ -51,8 +52,15 @@ class SpeechStripper:
         return self._line(remaining)
 
     def _line(self, line: str) -> str:
-        if _FENCE.match(line):
-            self._in_fence = not self._in_fence
+        fence_match = _FENCE.match(line)
+        if fence_match:
+            fence_char = fence_match.group(1)[0]
+            if self._in_fence and self._fence_char == fence_char:
+                self._in_fence = False
+                self._fence_char = None
+            elif not self._in_fence:
+                self._in_fence = True
+                self._fence_char = fence_char
             return ""
         if self._in_fence:
             return ""
