@@ -7,3 +7,8 @@ models/
 *.wav
 .env
 .superpowers/
+.claude-flow/
+.swarm/
+*.rvf
+*.rvf.lock
+ruvector.db
