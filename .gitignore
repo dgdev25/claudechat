@@ -6,3 +6,4 @@ models/
 *.bin
 *.wav
 .env
+.superpowers/
