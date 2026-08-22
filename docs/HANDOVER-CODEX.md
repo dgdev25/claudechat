@@ -1,12 +1,62 @@
 # Handover — claudechat phase 1, Tasks 3 to 16
 
-You are taking over implementation of `claudechat`. Tasks 1 and 2 are done and committed.
-Tasks 3 to 16 are yours. This document is written for someone with no prior context on this
-project. Read it fully before writing code.
+## 0. Your assignment — read this first
 
-A reviewer will go over your work afterwards and fix what needs fixing. That is not a reason
-to be careless: the review costs far less when the work is right, and the traps listed in
-section 7 have already cost real rework once each.
+**You are implementing Tasks 3 through 16 of an existing, already-designed project.** Tasks 1
+and 2 are built and committed. The design is settled, the requirements are numbered, and every
+task you own has a brief containing its exact file paths, code, and test cases.
+
+**Your job is to build, not to redesign.** Do not restructure what exists, do not change agreed
+interfaces, do not add dependencies, and do not build the two features listed as out of scope.
+Where you believe the plan is wrong, section 9 tells you when to fix it and when to stop and
+say so.
+
+### Do this now, in this order
+
+1. Read this whole document. It is about 15 minutes and it will save you more than that —
+   section 7 lists seven traps that have already caused real rework in this project.
+2. Confirm the ground truth for yourself, in the repo at `/data/dev/claudechat`:
+   ```bash
+   git rev-parse --abbrev-ref HEAD     # must be feat/voice-engine-phase-1
+   git log --oneline | head -8         # what is already committed
+   uv run pytest -q                    # must be green before you touch anything
+   cat .superpowers/sdd/docs-superpowers-plans-2026-08-22-claudechat-phase-1/progress.md
+   ```
+   If the suite is not green before you start, stop and report that — do not build on a broken
+   base.
+3. Open `task-3-brief.md` (path in section 2) and start Task 3.
+4. Work tasks strictly in order, 3 → 16. Each task is finished only when it meets every box in
+   section 8's definition of done.
+
+### The loop, per task
+
+> read the brief → write the tests → watch them fail → implement → whole suite green →
+> mutation-check the important tests → self-review your diff → commit → append to the ledger →
+> write the task report
+
+Nothing in that loop is optional. The mutation check (7.1) and the whole-suite run are the two
+steps most often skipped and the two that have actually caught defects here.
+
+### If you are being launched from a command line
+
+The prompt that points here lives at `scripts/codex-kickoff.txt`. To start a run:
+
+```bash
+cd /data/dev/claudechat && codex "$(cat scripts/codex-kickoff.txt)"
+```
+
+### What happens after you
+
+A reviewer reads your diffs against the briefs and fixes what needs fixing. That is not a
+safety net to lean on — it is a second pair of eyes on work you have already made correct. The
+single most useful thing you can hand that reviewer is an honest report: what you were unsure
+about, what you decided anyway, and where your tests are weak. A confident green tick that does
+not hold up costs everyone far more than a flagged doubt.
+
+---
+
+Tasks 3 to 16 are yours. This document is written for someone with no prior context on this
+project.
 
 ---
 
@@ -64,10 +114,12 @@ Committed and complete:
 
 - **Task 1** — `pyproject.toml`, `src/claudechat/config.py` (`Config`, `load_config`). 5 tests.
 - **Task 2** — `src/claudechat/text/strip.py` (`strip_control_characters`, `SpeechStripper`).
-  7 tests. A review of this task was in flight at handover; if it produced findings, they will
-  be listed in `progress.md`. Check there before assuming Task 2 is settled.
+  Reviewed, and the review found one critical and three important defects **in the plan's own
+  reference code**; a fix round was applied. Read trap 7.7 — it is the most transferable lesson
+  in this document. Check `progress.md` for the final state and the deferred minors.
 
-Full suite currently: **12 passed**. Keep it green. If you make it red, fix it before moving
+Run `uv run pytest -q` first to see the true current count, and `git log --oneline` to see
+where Task 2's fixes landed. Keep the suite green. If you make it red, fix it before moving
 on — never leave a broken suite for the next task.
 
 Everything from Task 3 onward does not exist yet.
@@ -140,7 +192,8 @@ For each task N from 3 to 16, in order:
 
 1. **Read** `task-<N>-brief.md`. It contains the exact file paths, the code, and the test
    cases. Where it gives literal values — numbers, signatures, test inputs — use them verbatim.
-   They are chosen to fit tasks you have not read yet.
+   They are chosen to fit tasks you have not read yet. **But the brief's reference code is not
+   infallible — see trap 7.7. Copy its interfaces exactly; think about its logic.**
 2. **Write the tests first**, run them, and watch them fail for the right reason.
 3. **Implement** the minimum that makes them pass.
 4. **Run the whole suite**, not just your file: `uv run pytest -q`.
@@ -248,7 +301,32 @@ pins SHA-256 digests. **Step 6 of Task 4 requires you to fetch the real digests 
 in.** The code tolerates an empty digest so tests can run — shipping it that way silently
 disables the integrity check. Do not skip that step.
 
-### 7.7 Do not commit scratch files
+### 7.7 The plan's reference code contains bugs — copying it verbatim is not enough
+
+Task 2's implementation was copied faithfully from its brief, and review still found a
+**critical** defect plus three important ones, all present in the brief's own reference code:
+
+- Only ` ``` ` fences were recognised, so a `~~~` fenced code block was read aloud verbatim —
+  the exact failure that module exists to prevent.
+- The emphasis regex stripped *every* underscore, turning `variable_name_here` into
+  `variablenamehere`. This tool speaks a coding assistant's output, so identifiers are among
+  the most common things it will say.
+- Three rules (tables, list markers, links) had no test at all; deleting any of them left the
+  whole suite green.
+- 8-bit C1 control codes bypassed the escape stripping entirely.
+
+**The lesson: treat the brief's interfaces, signatures, and literal values as binding, but
+treat its internal logic as a first draft.** Where a brief's code is doing security-relevant
+filtering or parsing, ask what it misses before you copy it. If you find a defect, fix it,
+say so in your report, and note it as an authorised deviation — do not silently reproduce a
+bug because the plan contained it, and do not silently rewrite an interface because you
+prefer a different one.
+
+The tasks most likely to hide the same class of problem: Task 3 (sentence boundaries),
+Task 13 (request validation), Task 14 (stripping before an untrusted-text model call), and
+Task 15 (the hook guard).
+
+### 7.8 Do not commit scratch files
 
 `git add -A` once swept tool scratch directories into a commit. `.gitignore` now covers
 `.superpowers/`, `.claude-flow/`, `.swarm/`, `*.rvf`, `ruvector.db`, `models/`, `*.onnx`,

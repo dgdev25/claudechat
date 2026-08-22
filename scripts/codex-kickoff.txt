@@ -1,0 +1,26 @@
+You are implementing Tasks 3 through 16 of claudechat, an existing and already-designed
+project in this repository. Tasks 1 and 2 are built and committed. Do not redesign anything.
+
+Read /data/dev/claudechat/docs/HANDOVER-CODEX.md in full before writing any code. It is your
+complete brief: current state, the verified environment, the fixed constraints you must not
+violate, the per-task workflow, and seven traps that have already caused real rework here.
+Section 0 tells you exactly how to start and section 7 is the part that will save you time.
+
+Ground rules that override any instinct to do otherwise:
+- Work tasks strictly in order, 3 to 16. Each task has its own brief file with the exact code
+  and tests; the paths are in section 2 of the handover.
+- Never use pip or the system Python. Everything runs through `uv run`.
+- Never add a dependency that is not already in pyproject.toml.
+- The Claude CLI flag set in section 5 is mandatory and must not be altered, and
+  `--permission-mode dontAsk` must never be added.
+- Run the whole test suite after every task, not just your own file.
+- Mutation-check the tests that assert something is removed, rejected, or prevented: break the
+  logic, confirm the test fails, restore it, confirm it passes. A test that passes for the
+  wrong reason has already cost this project two rework rounds.
+- Commit after each task and append a line to the ledger named in section 6.
+
+Stop and report rather than guessing if: a brief contradicts the handover or an ADR, you think
+you need a new dependency, or the Claude CLI's behaviour differs from what section 5 describes.
+
+When you finish, report using the format in section 10 of the handover. Be honest about weak
+tests and decisions you were unsure about — that is more valuable than a clean-looking summary.
