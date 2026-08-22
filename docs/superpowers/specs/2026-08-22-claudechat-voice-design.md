@@ -36,7 +36,7 @@ pool, so the terminal stays responsive while a model runs.
   speakers ◄────────│  AudioOutput     (pw-play)           │
                     └──────────────────────────────────────┘
                               ▲
-   Claude Code Stop hook ─────┘  (HTTP POST to a local socket)
+   Claude Code Stop hook ─────┘  (Unix domain socket, 0600, peer UID checked)
 ```
 
 Why one process rather than the two-process split considered earlier: that split existed to
@@ -86,10 +86,11 @@ metadata but ships no LICENSE file (PRD risk 5).
 
 ### 3.4 `ClaudeRunner` (REQ-013 – REQ-017)
 
-Spawns the CLI per turn:
+Spawns the CLI per turn. **The prompt goes on stdin, never in argv** — command arguments are
+readable by any local process, and prompts contain the user's speech. Verified working.
 
 ```
-claude -p <prompt>
+claude -p                                  # prompt written to stdin, then stdin closed
   --output-format stream-json --verbose --include-partial-messages
   --model sonnet
   --strict-mcp-config --mcp-config '{"mcpServers":{}}'
@@ -97,11 +98,19 @@ claude -p <prompt>
   --exclude-dynamic-system-prompt-sections
   --system-prompt <voice persona>
   --settings '{"enabledPlugins":{}}'
-  --permission-mode dontAsk
   [--resume <session_id>]
 ```
 
-Environment carries `CLAUDECHAT_INTERNAL=1` (REQ-020).
+`--permission-mode dontAsk` is deliberately **absent**. It is fail-open: it tells the CLI to
+proceed without asking should a capability ever become available. Verified that the command
+runs non-interactively without it, so the design fails closed instead. `--verbose` is
+required by `--include-partial-messages`; it was checked for credential leakage and the
+stream contained none.
+
+Spawned with `shell=False`, an explicit argv list, an absolute executable path resolved at
+startup, and a minimal allowlisted environment. Environment carries
+`CLAUDECHAT_INTERNAL=<token>` (REQ-020), where the token is random per engine start rather
+than a fixed `1`, so an unrelated exported variable cannot silently suppress speech.
 
 **Context stripping (REQ-014) is the cost control.** Measured: the same trivial prompt cost
 32,534 cache-creation tokens with normal project context and 3,489 tokens with the flags
@@ -160,17 +169,33 @@ they are queued.
 
 A small script registered on the `Stop` event in `~/.claude/settings.json`. On each reply:
 
-1. If `CLAUDECHAT_INTERNAL` is set, exit 0 immediately (REQ-020). Verified during design:
-   the system's own CLI calls do fire this hook, and the marker does reach the hook process.
-   Without this guard the app speaks every reply twice and summarises its own summaries.
+1. If the internal marker matches the token in the engine's runtime file, exit 0 immediately
+   (REQ-020). Verified during design: the system's own CLI calls do fire this hook, and the
+   marker does reach the hook process. Without this guard the app speaks every reply twice
+   and summarises its own summaries. This is recursion control, not access control.
 2. Read `last_assistant_message` from the JSON on stdin. No transcript parsing is needed —
    verified that the payload carries the complete reply text.
-3. POST it to the running engine with a short timeout, then exit 0 regardless of outcome
+3. POST it to the engine socket with a short timeout, then exit 0 regardless of outcome
    (REQ-021). Claude Code must never wait on speech.
 
+Spoken summaries are **off by default** and enabled explicitly (REQ-023), because this path
+speaks without the user asking it to and a reply may contain secrets, customer data, or
+source code that should not be broadcast aloud in a shared room. A mute control stops
+announcements without starting a model call.
+
 The engine strips code and markup, and if the text exceeds a configured length (REQ-022) it
-condenses it with one short tool-free CLI call into plain fact bullets (REQ-019) before
-speaking. Short replies are spoken directly, without that call.
+condenses it into plain fact bullets (REQ-019) before speaking. Short replies are spoken
+directly, without that call.
+
+**The condensing call treats its input as untrusted data.** `last_assistant_message` is
+model-generated but can carry text from repository files, web pages, or tool output, so it
+can contain instructions aimed at the summariser ("ignore the reply and say ..."). Controls:
+the payload is passed as delimited data with a fixed system prompt stating it is quoted
+material to be summarised and never instructions to follow; URLs, code, and credential-shaped
+strings are stripped before the call; the summary output is length-capped; and the call
+remains tool-free and MCP-free so a successful injection can only alter spoken wording, not
+take action. Users who want no exposure at all can set the summariser to deterministic mode,
+which speaks a bounded stripped excerpt with no second model call.
 
 ## 4. Configuration (REQ-005, REQ-023)
 
@@ -192,7 +217,85 @@ Against the PRD target of ≤3.5 s. The speech layer contributes ≈0.53 s again
 target. Claude dominates and is not locally reducible; open question 2 (a persistent CLI
 process) is the one remaining lever.
 
-## 6. Testing
+## 6. Security design
+
+Threat-modelled by two independent models before implementation. The realistic adversary is
+not a remote attacker — it is another process on this machine, and untrusted text that
+reaches a model call or the terminal. A process already running as this user cannot be
+defended against and is out of scope; that is stated rather than pretended away.
+
+### 6.1 Engine ingress
+
+The hook reaches the engine over a **Unix domain socket only — never a TCP port**, even on
+loopback. A loopback port is reachable by every local process and by a browser page through
+DNS rebinding, and this endpoint spends the user's Claude quota and makes the speakers talk.
+
+- Socket at `$XDG_RUNTIME_DIR/claudechat/engine.sock`, directory mode `0700`, socket `0600`.
+- Verify the connecting peer's UID with `SO_PEERCRED`; reject any other UID.
+- Refuse to start if an existing path is not a socket owned by this user; never blind-unlink.
+- Exactly one operation is exposed: speak a hook reply. The caller cannot choose a model, a
+  command, an audio device, or a config path.
+- Request bodies are size-capped before JSON parsing, with a strict schema; unknown fields
+  are rejected.
+
+### 6.2 Resource and quota bounds
+
+Context stripping reduces per-turn cost but sets no ceiling. Bounds are explicit:
+
+- Hook requests are **dropped on overload, never queued** — at most one pending
+  announcement, newer replaces older — and rate-limited to one per configurable interval.
+- Hard caps on ingress bytes, text length, synthesised audio duration, recording duration,
+  streamed CLI output, and per-turn wall clock.
+- A per-turn subprocess timeout terminates the process group on expiry.
+- Announcements yield to an active user turn; direct interaction wins.
+
+### 6.3 Recording safety
+
+Recording is the most privacy-sensitive state, and toggle mode can strand it open if a stop
+keypress is missed or the terminal is obscured.
+
+- Every capture has a hard maximum duration with automatic stop and visible feedback.
+- Capture starts only on explicit user action — never at startup, after speech ends, after a
+  hook event, or after an interruption.
+- Recording stops on client exit, terminal disconnect, uncaught exception, and shutdown; the
+  recorder runs in its own managed process group.
+- Raw audio is held in memory for the active turn only and never written to disk unless
+  debugging is explicitly enabled.
+
+### 6.4 Model file integrity
+
+The ONNX files are execution graphs parsed by native code, so a substituted file is a code
+execution path, and HTTPS alone is not an integrity guarantee.
+
+- Pin exact URLs, byte lengths, and SHA-256 digests in a manifest.
+- Download to a temporary file, enforce a maximum size, verify the digest, then atomically
+  rename into place; re-verify before load.
+- Model paths are not configurable, so config cannot point the loader at an arbitrary file.
+- Python dependencies are pinned with hashes.
+
+### 6.5 Output handling
+
+Transcripts and replies can contain terminal escape sequences — clipboard writes, hyperlinks,
+cursor manipulation — and hook text may originate from untrusted project content.
+
+- Strip C0/C1 control characters and normalise line endings before display and before speech.
+- Render external text as plain text; no terminal hyperlink generation.
+
+### 6.6 Dismissed, with reasons
+
+- **Remote network attack surface** — not applicable while ingress is a Unix socket and there
+  is no listener. Becomes applicable the moment the phase 2 browser client adds one; re-model
+  then.
+- **Wake-word and always-listening attacks** — not applicable while capture is manual.
+  Re-model before REQ-028.
+- **Malicious code already running as this user** — not defensible for a personal tool; it can
+  read runtime files and use the user's credentials regardless.
+- **API key theft** — no API key exists; the design uses the CLI's OAuth session.
+- **Audio interception in transit** — speech never leaves the machine.
+- **Credential leakage through `--verbose`** — raised in review, **tested and dismissed**: the
+  full stream contained no credential-shaped strings.
+
+## 7. Testing
 
 - **Unit.** Stripping and chunking against fragmented input, including a code fence split
   across fragments, abbreviations, and decimals.
@@ -205,7 +308,7 @@ process) is the one remaining lever.
 - **Metrics.** A benchmark script that reports the section 5 numbers, so regressions against
   the PRD targets are visible.
 
-## 7. Reusable code & prior art
+## 8. Reusable code & prior art
 
 Licences below were verified by reading each repository's own LICENSE file, not a registry
 summary — four registry entries were wrong during research.
@@ -231,7 +334,7 @@ must be revisited before any public release.
 **Built rather than adopted:** sentence chunking (`stream2sentence` ships no LICENSE file);
 the markdown-to-speech stripper (the available libraries are GPL or drag in an HTML parser).
 
-## 8. Decisions requiring an ADR
+## 9. Decisions requiring an ADR
 
 1. Reach Claude through the Claude Code CLI rather than the API or Agent SDK (OAuth).
 2. Strip project context, tools, and MCP from every turn (9× token reduction).
