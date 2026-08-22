@@ -94,7 +94,7 @@ def main() -> int:
         Playback(sample_rate=24000),
         Conversation(ClaudeRunner(config, token), SpeechStripper, SentenceChunker),
     )
-    print("claudechat — press Enter to start recording, Enter again to stop. Ctrl-C to quit.")
+    print("claudechat — toggle mode: press Enter to start recording, Enter again to stop. Ctrl-C to quit.")
     try:
         while True:
             input()

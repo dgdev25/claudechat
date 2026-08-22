@@ -33,6 +33,12 @@ stated openly rather than papered over, and phase 2 closes it. Adding the browse
 also means the security model gains a network listener, which must be threat-modelled at that
 point.
 
+Task 12 outcome (2026-08-23): use press-to-start / press-to-stop toggle mode. The prescribed
+auto-repeat probe could not access a TTY in the automated execution channel (`ENOTTY`), so it
+did not produce a repeat interval. With VTE 0.84 and no enhanced keyboard protocol, this does
+not establish reliable hold-to-talk; the agreed fallback is used. A manual probe in the user's
+interactive VTE session remains the only way to revise this decision.
+
 ## Alternatives
 
 - Both surfaces at once — rejected by the user, and it would double the surface area before
