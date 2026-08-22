@@ -12,3 +12,4 @@ models/
 *.rvf
 *.rvf.lock
 ruvector.db
+:memory:*
