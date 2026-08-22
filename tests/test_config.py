@@ -1,5 +1,5 @@
-from pathlib import Path
-from claudechat.config import load_config, Config
+import tomllib
+from claudechat.config import load_config, _check_clean
 
 
 def test_defaults_are_used_when_no_file_exists(tmp_path):
@@ -30,9 +30,19 @@ def test_rejects_out_of_range_speed(tmp_path):
         raise AssertionError("expected ValueError")
 
 
+def test_rejects_control_characters_in_config_file(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[speech]\ntts_voice = "af_h\x01eart"\n')
+    try:
+        load_config(p)
+    except (ValueError, tomllib.TOMLDecodeError):
+        pass
+    else:
+        raise AssertionError("expected ValueError or TOMLDecodeError")
+
+
 def test_rejects_control_characters_in_voice_name(tmp_path):
-    # TOML does not permit literal NUL, so test by calling validation directly
-    from claudechat.config import _check_clean
+    # Unit test for validation helper
     try:
         _check_clean("tts_voice", "af_h\x01eart")
     except ValueError:
