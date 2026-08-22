@@ -33,14 +33,21 @@ stated openly rather than papered over, and phase 2 closes it. Adding the browse
 also means the security model gains a network listener, which must be threat-modelled at that
 point.
 
-Task 12 outcome (2026-08-23): use press-to-start / press-to-stop toggle mode. The prescribed
-auto-repeat probe could not access a TTY in the automated execution channel (`ENOTTY`), so it
-did not produce a repeat interval. With VTE 0.84 and no enhanced keyboard protocol, this does
-not establish reliable hold-to-talk; the agreed fallback is used. A manual probe in the user's
-interactive VTE session remains the only way to revise this decision.
+Task 12 outcome (2026-08-23), SUPERSEDED — see below.
+The automated probe could not access a TTY (`ENOTTY`), produced no repeat interval, and the
+agreed toggle fallback was taken on that basis. That reasoning was sound given what was
+measurable from a non-interactive channel.
 
-## Alternatives
+Task 12 outcome (2026-08-23, final): hold-to-talk IS viable. The repeat timing did not need a
+TTY at all — it is a system setting, read directly:
 
-- Both surfaces at once — rejected by the user, and it would double the surface area before
-  the engine is proven.
-- Browser first — rejected: the user works in the terminal and wanted the engine proven there.
+    org.gnome.desktop.peripherals.keyboard delay            = 500 ms
+    org.gnome.desktop.peripherals.keyboard repeat-interval  =  30 ms
+
+30 ms is far inside the 200 ms threshold this plan set, so auto-repeat inference is reliable
+here and no manual probe is required. Reading the settings also exposed a defect in the
+reference detector, fixed in ADR 0014.
+
+Remaining work: the terminal client still runs press-to-start / press-to-stop. The detector
+now supports holding correctly, but wiring `read_key_events` into `run_turn` was not done and
+is outstanding.
