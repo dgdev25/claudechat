@@ -32,13 +32,13 @@ def test_rejects_out_of_range_speed(tmp_path):
 
 def test_rejects_control_characters_in_config_file(tmp_path):
     p = tmp_path / "c.toml"
-    p.write_text('[speech]\ntts_voice = "af_h\x01eart"\n')
+    p.write_text('[speech]\ntts_voice = "af_h\\u0001eart"\n')
     try:
         load_config(p)
-    except (ValueError, tomllib.TOMLDecodeError):
-        pass
+    except ValueError as e:
+        assert "tts_voice" in str(e)
     else:
-        raise AssertionError("expected ValueError or TOMLDecodeError")
+        raise AssertionError("expected ValueError")
 
 
 def test_rejects_control_characters_in_voice_name(tmp_path):
