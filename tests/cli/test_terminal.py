@@ -397,9 +397,72 @@ def test_engine_announce_then_listen_skips_listening_when_voice_replies_off():
                             # Listen should not be called since voice_replies is False
                             engine._announce_then_listen("test")
                             # If _reply_listener exists, its listen_once should not be called
-                            if engine._reply_listener:
-                                # This won't happen since voice_replies is False
-                                pass
+
+
+def test_voice_barge_in_listener_uses_config_values():
+    """Test that _voice_barge_in_listener uses config barge_vad_threshold and barge_min_speech_ms."""
+    config = Config(
+        voice_barge_in=True,
+        barge_vad_threshold=0.75,
+        barge_min_speech_ms=600,
+    )
+
+    # Track SpeechGate instantiations
+    gate_kwargs_list = []
+
+    class FakeSpeechGate:
+        def __init__(self, **kwargs):
+            gate_kwargs_list.append(kwargs)
+            self.state = "waiting"
+
+        def feed(self, pcm):
+            # Return speech to trigger interrupt after first feed
+            return "speech"
+
+    class FakeCaptureWithTake:
+        sample_rate = 16000
+
+        def __init__(self, config=None):
+            self.started = False
+            self.config = config
+
+        def start(self):
+            self.started = True
+
+        def stop(self):
+            return b""
+
+        def take(self):
+            if self.started:
+                # Return some audio data
+                return b"\x00\x00" * 100
+            return b""
+
+    def barge_capture_factory():
+        return FakeCaptureWithTake(config)
+
+    session = VoiceSession(
+        config,
+        FakeCapture(),
+        FakeTranscriber(),
+        FakeSynth(),
+        FakePlayback(),
+        FakeConversation(chunks=["Response text"]),
+        wait_for_stop=lambda: None,
+        enable_barge_in=True,
+        barge_capture_factory=barge_capture_factory,
+    )
+
+    # Patch SpeechGate in the terminal module
+    with patch("claudechat.cli.terminal.SpeechGate", FakeSpeechGate):
+        session.run_turn()
+        time.sleep(0.2)  # Wait for barge-in listener thread
+
+    # Verify that SpeechGate was instantiated with config values
+    assert len(gate_kwargs_list) > 0
+    gate_call = gate_kwargs_list[0]
+    assert gate_call["threshold"] == 0.75
+    assert gate_call["min_speech_ms"] == 600
 
 
 def test_reply_chunks_reach_playback_with_the_real_conversation():

@@ -298,9 +298,9 @@ class VoiceSession:
             else:
                 gate = SpeechGate(
                     sample_rate=capture.sample_rate,
-                    threshold=min(0.95, self.config.vad_threshold + 0.1),
+                    threshold=self.config.barge_vad_threshold,
                     silence_ms=self.config.vad_silence_ms,
-                    min_speech_ms=400,
+                    min_speech_ms=self.config.barge_min_speech_ms,
                 )
 
             while self._responding.is_set():

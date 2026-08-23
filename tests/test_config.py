@@ -322,6 +322,68 @@ def test_voice_barge_in_from_config(tmp_path):
     assert cfg.voice_barge_in is True
 
 
+def test_barge_vad_threshold_defaults(tmp_path):
+    cfg = load_config(tmp_path / "absent.toml")
+    assert cfg.barge_vad_threshold == 0.6
+
+
+def test_barge_vad_threshold_from_config(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[speech]\nbarge_vad_threshold = 0.7\n')
+    cfg = load_config(p)
+    assert cfg.barge_vad_threshold == 0.7
+
+
+def test_rejects_barge_vad_threshold_out_of_range(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text("[speech]\nbarge_vad_threshold = 0.05\n")
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "barge_vad_threshold" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+    p.write_text("[speech]\nbarge_vad_threshold = 1.0\n")
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "barge_vad_threshold" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_barge_min_speech_ms_defaults(tmp_path):
+    cfg = load_config(tmp_path / "absent.toml")
+    assert cfg.barge_min_speech_ms == 400
+
+
+def test_barge_min_speech_ms_from_config(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[speech]\nbarge_min_speech_ms = 500\n')
+    cfg = load_config(p)
+    assert cfg.barge_min_speech_ms == 500
+
+
+def test_rejects_barge_min_speech_ms_out_of_range(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text("[speech]\nbarge_min_speech_ms = 50\n")
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "barge_min_speech_ms" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+    p.write_text("[speech]\nbarge_min_speech_ms = 3000\n")
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "barge_min_speech_ms" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
 def test_stt_vocabulary_defaults_to_empty(tmp_path):
     cfg = load_config(tmp_path / "absent.toml")
     assert cfg.stt_vocabulary == ""

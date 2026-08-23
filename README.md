@@ -213,6 +213,8 @@ take effect on the next reply. Settings marked **restart** require the engine to
 | `thinking_cue` | `true` | Play tone while Claude thinks. |
 | `vad_silence_ms` | `700` | Silence duration to end recording (200–5000 ms). |
 | `vad_threshold` | `0.5` | Speech detection threshold (0.1–0.95). |
+| `barge_vad_threshold` | `0.6` | Barge-in speech detection threshold (0.1–0.95). Lower threshold makes interruption easier but adds false positives. |
+| `barge_min_speech_ms` | `400` | Minimum speech duration for barge-in (100–2000 ms). Shorter duration makes interruption easier but adds false positives. |
 | `voice_barge_in` | `false` | Interrupt reply if speech is detected while speaking. |
 | `capture_target` | `` | Main recording PipeWire source. Leave empty — raw microphone transcribes best. **Restart** to change. |
 | `barge_capture_target` | `` | Voice barge-in listener PipeWire source (e.g. `claudechat_ec_source`). Empty falls back to `capture_target`. **Restart** to change. |

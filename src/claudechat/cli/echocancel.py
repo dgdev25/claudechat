@@ -20,9 +20,16 @@ PIPEWIRE_CONF = """# claudechat: echo-cancelled microphone path, so voice barge-
 # trigger on the assistant's own speech coming from the speakers.
 # Playback routed into claudechat_ec_sink is used as the cancellation
 # reference; claudechat_ec_source is the microphone with that audio removed.
+# Noise suppression and gain control are disabled: they crush the user's
+# voice during double-talk, which is exactly when barge-in must hear it.
 context.modules = [
     { name = libpipewire-module-echo-cancel
         args = {
+            aec.args = {
+                webrtc.noise_suppression = false
+                webrtc.gain_control = false
+                webrtc.high_pass_filter = true
+            }
             capture.props = {
                 node.name = "claudechat_ec_capture"
                 node.description = "claudechat mic (raw)"

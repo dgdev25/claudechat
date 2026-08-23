@@ -35,6 +35,8 @@ class Config:
     thinking_cue: bool = True
     vad_silence_ms: int = 700
     vad_threshold: float = 0.5
+    barge_vad_threshold: float = 0.6
+    barge_min_speech_ms: int = 400
     voice_replies: bool = False
     voice_reply_window_seconds: float = 6.0
     voice_barge_in: bool = False
@@ -83,6 +85,8 @@ def load_config(path: Path | None = None) -> Config:
         thinking_cue=bool(speech.get("thinking_cue", Config.thinking_cue)),
         vad_silence_ms=int(speech.get("vad_silence_ms", Config.vad_silence_ms)),
         vad_threshold=float(speech.get("vad_threshold", Config.vad_threshold)),
+        barge_vad_threshold=float(speech.get("barge_vad_threshold", Config.barge_vad_threshold)),
+        barge_min_speech_ms=int(speech.get("barge_min_speech_ms", Config.barge_min_speech_ms)),
         voice_replies=bool(hook.get("voice_replies", Config.voice_replies)),
         voice_reply_window_seconds=float(hook.get("voice_reply_window_seconds", Config.voice_reply_window_seconds)),
         voice_barge_in=bool(speech.get("voice_barge_in", Config.voice_barge_in)),
@@ -116,6 +120,10 @@ def load_config(path: Path | None = None) -> Config:
         raise ValueError("vad_silence_ms must be between 200 and 5000")
     if not 0.1 <= cfg.vad_threshold <= 0.95:
         raise ValueError("vad_threshold must be between 0.1 and 0.95")
+    if not 0.1 <= cfg.barge_vad_threshold <= 0.95:
+        raise ValueError("barge_vad_threshold must be between 0.1 and 0.95")
+    if not 100 <= cfg.barge_min_speech_ms <= 2000:
+        raise ValueError("barge_min_speech_ms must be between 100 and 2000")
     if not 2.0 <= cfg.voice_reply_window_seconds <= 30.0:
         raise ValueError("voice_reply_window_seconds must be between 2.0 and 30.0")
     if len(cfg.stt_vocabulary) > 800:

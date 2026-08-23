@@ -13,6 +13,8 @@ hands_free = false         # Use VAD instead of Enter key to start/stop recordin
 thinking_cue = true        # Play tone while Claude thinks
 vad_silence_ms = 700       # Silence duration to end recording (200-5000)
 vad_threshold = 0.5        # Speech detection threshold (0.1-0.95)
+barge_vad_threshold = 0.6  # Barge-in speech detection threshold (0.1-0.95); lower = easier to interrupt
+barge_min_speech_ms = 400  # Minimum speech duration for barge-in (100-2000); lower = easier to interrupt
 voice_barge_in = false     # Interrupt reply if speech is detected while speaking
 capture_target = ""        # Main recording PipeWire source (normally empty for raw microphone)
 barge_capture_target = ""  # Voice barge-in listener PipeWire source (e.g. "claudechat_ec_source")
