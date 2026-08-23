@@ -80,7 +80,20 @@ def _is_enabled(path: Path | None = None) -> bool:
 
 
 def _daemon_running(config: Config) -> bool:
-    return (config.runtime_dir / "engine.sock").is_socket()
+    """True only if something answers the socket — a daemon that died without
+    cleanup leaves the socket file behind, and stat alone reports it running."""
+    path = config.runtime_dir / "engine.sock"
+    if not path.is_socket():
+        return False
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    probe.settimeout(0.5)
+    try:
+        probe.connect(str(path))
+        return True
+    except OSError:
+        return False
+    finally:
+        probe.close()
 
 
 def _autostart_installed() -> bool:
