@@ -6,3 +6,11 @@ claudechat daemon ready — voice bm_fable, speech on, socket /run/user/1000/cla
 claudechat daemon stopped
 claudechat daemon ready — voice bm_fable, speech on, socket /run/user/1000/claudechat/engine.sock
 claudechat daemon stopped
+claudechat daemon ready — voice bm_fable, speech on, socket /run/user/1000/claudechat/engine.sock
+claudechat daemon stopped
+claudechat daemon ready — voice bm_fable, speech on, socket /run/user/1000/claudechat/engine.sock
+claudechat daemon stopped
+claudechat daemon ready — voice bm_fable, speech off, socket /run/user/1000/claudechat/engine.sock
+claudechat daemon stopped
+claudechat daemon ready — voice bm_fable, speech off, socket /run/user/1000/claudechat/engine.sock
+claudechat daemon stopped

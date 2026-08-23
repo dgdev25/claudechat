@@ -1,4 +1,5 @@
 import json
+import os
 import socket
 import stat
 from dataclasses import replace
@@ -99,3 +100,39 @@ def test_survives_clients_that_close_without_reading(tmp_path):
         assert seen == ["first", "second"], f"server stopped accepting: {seen}"
     finally:
         service.stop()
+
+
+def test_peer_check_uses_so_peercred_on_linux(tmp_path):
+    """The Linux path must keep working — it is the one in production use."""
+    import socket as socketlib
+
+    assert hasattr(socketlib, "SO_PEERCRED"), "this test only means anything on Linux"
+
+    seen = []
+    config = replace(Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=0.0)
+    service = EngineService(config, on_announce=seen.append)
+    path = service.start()
+    try:
+        reply = _send(path, json.dumps({"text": "accepted"}).encode())
+        assert b"ok" in reply, "own-UID connection must be accepted"
+    finally:
+        service.stop()
+
+
+def test_libc_peer_lookup_degrades_to_none_not_a_crash():
+    """glibc has no getpeereid; the helper must return None, never raise.
+
+    Returning None means 'cannot identify the peer', which _peer_is_owner
+    treats as reject. macOS has the symbol and returns a real uid.
+    """
+    import socket as socketlib
+
+    from claudechat.engine.service import peer_uid_via_libc
+
+    left, right = socketlib.socketpair(socketlib.AF_UNIX, socketlib.SOCK_STREAM)
+    try:
+        result = peer_uid_via_libc(left)
+        assert result is None or result == os.getuid()
+    finally:
+        left.close()
+        right.close()

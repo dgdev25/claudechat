@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
 import threading
 
+from claudechat.audio.backend import capture_command
 from claudechat.config import Config
 
 
@@ -21,9 +21,7 @@ class Capture:
         self._reader: threading.Thread | None = None
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
-        self._binary = shutil.which("pw-record")
-        if self._binary is None:
-            raise RuntimeError("pw-record not found; install pipewire-utils")
+        self._argv = capture_command(self.sample_rate)
 
     def start(self) -> None:
         with self._lock:
@@ -31,13 +29,7 @@ class Capture:
                 return
             self._chunks = []
             self._process = subprocess.Popen(
-                [
-                    self._binary,
-                    "--format=s16",
-                    f"--rate={self.sample_rate}",
-                    "--channels=1",
-                    "-",
-                ],
+                self._argv,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,

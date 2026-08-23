@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from claudechat.audio.backend import playback_command
+
 import os
-import shutil
 import signal
 import subprocess
 import threading
@@ -14,9 +15,9 @@ class Playback:
         self._sample_rate = sample_rate
         self._process: subprocess.Popen[bytes] | None = None
         self._lock = threading.Lock()
-        self._binary = shutil.which("pw-cat")
-        if self._binary is None:
-            raise RuntimeError("pw-cat not found; install pipewire-utils")
+        # Resolved per platform; raises AudioUnavailable with install
+        # instructions rather than failing obscurely at spawn time.
+        self._argv = playback_command(sample_rate)
 
     def play(self, pcm: bytes) -> None:
         if not pcm:
@@ -24,15 +25,7 @@ class Playback:
         with self._lock:
             self._stop_locked()
             self._process = subprocess.Popen(
-                [
-                    self._binary,
-                    "--playback",
-                    "--raw",
-                    "--format=s16",
-                    f"--rate={self._sample_rate}",
-                    "--channels=1",
-                    "-",
-                ],
+                self._argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
