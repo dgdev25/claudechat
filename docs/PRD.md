@@ -54,6 +54,26 @@ an API key instead of the subscription login, shipping no LICENSE file, or being
 | Interrupting works | Time from barge-in keypress to audio silence | ≤ 300 ms |
 | Hook never duplicates speech | Duplicate or recursive utterances per 50 hook turns | 0 |
 
+### Measured again after the latency work (2026-08-23)
+
+Two fixes, each measured in isolation because Claude's own time-to-first-token
+varies by ±2 s and swamps both in any small end-to-end sample:
+
+| Fix | Measured |
+|---|---|
+| Stripper released text only on newlines, buffering whole replies | 1.80 s → 0.85 s of dead air per turn |
+| Process-per-turn vs one persistent process (6 turns each) | 3.05 s → 1.57 s to first token |
+
+Together that removes roughly 2.4 s from a continued turn. Estimated total to
+first audio on a continued turn: about 3.2 s, which meets the ≤ 3.5 s target.
+The **first** turn of a session still pays process startup and lands near 4 s,
+so the target is met in conversation but not on the opening turn.
+
+Cost of the persistent process: a turn abandoned before its result drops the
+process, so barge-in is followed by one cold start. Draining the abandoned turn
+instead, to keep the process, was measured at 29 s before the next turn could
+begin — far worse than the saving.
+
 ### Measured result at end of phase 1 (2026-08-23) — TWO TARGETS MISSED
 
 Median of three runs on an otherwise idle machine, measured the way the app actually

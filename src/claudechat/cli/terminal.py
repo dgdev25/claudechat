@@ -7,7 +7,8 @@ from collections.abc import Callable
 from claudechat.audio.capture import Capture
 from claudechat.audio.playback import Playback
 from claudechat.claude.conversation import Conversation
-from claudechat.claude.runner import ClaudeRunner
+from claudechat.claude.persistent import PersistentClaudeRunner
+from claudechat.claude.runner import VOICE_SYSTEM_PROMPT, ClaudeRunner
 from claudechat.config import Config, load_config
 from claudechat.engine.announce import Announcer
 from claudechat.engine.service import EngineService
@@ -93,7 +94,19 @@ class Engine:
         self.token = secrets.token_hex(16)
         self._synth: KokoroSynthesizer | None = None
         self._playback: Playback | None = None
+        # Two runners on purpose.
+        #
+        # Conversation turns reuse one long-lived process: consecutive turns
+        # drop from 2.5s to 1.3s to first token, and the conversation context is
+        # wanted there anyway.
+        #
+        # Hook summaries do NOT reuse it. Each summary is independent, so a
+        # shared process would accumulate unrelated replies and pay for that
+        # context on every later summary.
         self.runner = ClaudeRunner(config, self.token)
+        self.conversation_runner = PersistentClaudeRunner(
+            config, self.token, VOICE_SYSTEM_PROMPT
+        )
         self.announcer = Announcer(
             config_provider or config, self.runner, lambda text: self.speak(text)
         )
@@ -115,6 +128,7 @@ class Engine:
 
     def stop(self) -> None:
         self.service.stop()
+        self.conversation_runner.close()
         if self._playback is not None:
             self._playback.cancel()
         self.runner.cancel()
@@ -140,7 +154,7 @@ def interactive_main() -> int:
         WhisperTranscriber(config),
         synthesizer,
         Playback(sample_rate=synthesizer.sample_rate),
-        Conversation(engine.runner, SpeechStripper, SentenceChunker),
+        Conversation(engine.conversation_runner, SpeechStripper, SentenceChunker),
     )
     print("claudechat — toggle mode: press Enter to start recording, Enter again to stop. Ctrl-C to quit.")
     try:
