@@ -108,8 +108,35 @@ def _enable_commands(path: Path) -> list[list[str]]:
             ["systemctl", "--user", "enable", "--now", "claudechat"]]
 
 
+def install_launcher(project_root: Path) -> Path | None:
+    """Put `claudechat` on PATH.
+
+    Without this the commands only work as `uv run claudechat` from inside the
+    repo, which defeats a toggle you are supposed to reach from anywhere.
+    """
+    target = project_root / ".venv" / "bin" / "claudechat"
+    if not target.exists():
+        return None
+    bindir = Path.home() / ".local" / "bin"
+    if not bindir.is_dir():
+        return None
+    link = bindir / "claudechat"
+    if link.is_symlink() or link.exists():
+        if link.is_symlink() and link.resolve() == target.resolve():
+            return link
+        link.unlink()
+    link.symlink_to(target)
+    return link
+
+
 def command_install(with_service: bool = False) -> int:
     project_root = Path(__file__).resolve().parents[3]
+
+    launcher = install_launcher(project_root)
+    if launcher:
+        print(f"linked launcher       {launcher}")
+    else:
+        print("could not put claudechat on PATH — use 'uv run claudechat' from the repo")
 
     hook = install_hook(project_root)
     print(f"registered Stop hook   {hook}")

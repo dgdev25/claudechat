@@ -141,6 +141,7 @@ print_status() {
 if [[ "${DO_UNINSTALL}" == true ]]; then
   header "Removing claudechat from your environment"
   stop_daemon
+  rm -f "${HOME}/.local/bin/claudechat" 2>/dev/null && ok "Removed launcher from PATH" || true
   if [[ -f "${UNIT}" ]]; then
     if [[ "${IS_MAC}" == true ]]; then
       launchctl unload "${UNIT}" &>/dev/null || true
