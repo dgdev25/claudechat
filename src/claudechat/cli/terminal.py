@@ -218,6 +218,12 @@ class VoiceSession:
         if spoken_any:
             print()
 
+        # Speech outlives synthesis by ~4x, so the barge-in window must cover
+        # the audio draining too — clearing the flag here, before wait(),
+        # closed the window while the reply was still being spoken, and an
+        # Enter during speech queued as "start recording" instead.
+        self._state("speaking")
+        self.playback.wait(timeout=self.config.max_speech_seconds)
         self._responding.clear()
 
     def _barge_in_listener(self) -> None:
