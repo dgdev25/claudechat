@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # start.sh — claudechat launcher and one-time setup
 #
-# Brings up the always-on speech daemon that speaks Claude's replies aloud.
-# Run this once after cloning; afterwards the systemd user service starts it
-# with your session and you only ever use `claudechat on|off|toggle|status`.
+# Brings up the speech daemon that speaks Claude's replies aloud.
+#
+# Two ways to run it, and autostart is NOT the default:
+#   per session  ./start.sh          starts the daemon now, gone when you stop it
+#   always on    ./start.sh --autostart   adds a systemd user service
 #
 # Processes started:
 #   claudechat serve   — resident daemon: Whisper + Kokoro in memory, owns the
@@ -17,12 +19,14 @@
 # reset.
 #
 # Usage:
-#   ./start.sh              # set up if needed, then start the daemon
-#   ./start.sh --install    # also register the Stop hook + systemd service
-#   ./start.sh --stop       # stop the daemon
-#   ./start.sh --status     # is speech on, is the daemon up, which voice
-#   ./start.sh --rebuild    # force dependency re-sync
-#   ./start.sh --uninstall  # remove the hook and the service
+#   ./start.sh               # set up if needed, then run the daemon for THIS session
+#   ./start.sh --install     # register the Claude Code Stop hook (no autostart)
+#   ./start.sh --autostart   # hook + systemd service, starts with every login
+#   ./start.sh --no-autostart# remove the service, keep the hook
+#   ./start.sh --stop        # stop the daemon
+#   ./start.sh --status      # speech, daemon, autostart, voice
+#   ./start.sh --rebuild     # force dependency re-sync
+#   ./start.sh --uninstall   # remove hook and service entirely
 
 set -euo pipefail
 
@@ -44,13 +48,17 @@ header() { echo; echo "── ${*}"; }
 
 # ── Flags ────────────────────────────────────────────────────────────────────
 DO_INSTALL=false
+DO_AUTOSTART=false
+DO_NO_AUTOSTART=false
 STOP_ONLY=false
 STATUS_ONLY=false
 FORCE_REBUILD=false
 DO_UNINSTALL=false
 for arg in "$@"; do
   case "${arg}" in
-    --install)    DO_INSTALL=true ;;
+    --install)      DO_INSTALL=true ;;
+    --autostart)    DO_AUTOSTART=true ;;
+    --no-autostart) DO_NO_AUTOSTART=true ;;
     --stop)       STOP_ONLY=true ;;
     --status)     STATUS_ONLY=true ;;
     --rebuild)    FORCE_REBUILD=true ;;
@@ -149,11 +157,21 @@ PY
   exit 0
 fi
 
+# ── --no-autostart ───────────────────────────────────────────────────────────
+if [[ "${DO_NO_AUTOSTART}" == true ]]; then
+  header "Removing autostart (keeping the Stop hook)"
+  (cd "${PROJECT_ROOT}" && uv run claudechat uninstall-service 2>&1 | grep -viE "warn") || true
+  ok "Speech now runs only when you start it: ./start.sh"
+  exit 0
+fi
+
 # ── --status ─────────────────────────────────────────────────────────────────
 if [[ "${STATUS_ONLY}" == true ]]; then
   header "claudechat status"
   print_status
-  [[ -f "${UNIT}" ]] && ok "systemd service installed" || info "systemd service not installed (run ./start.sh --install)"
+  [[ -f "${UNIT}" ]] \
+    && ok "autostart installed (remove with ./start.sh --no-autostart)" \
+    || info "autostart off — daemon runs per session (add with ./start.sh --autostart)"
   grep -q "claudechat_hook.py" "${SETTINGS}" 2>/dev/null \
     && ok "Claude Code Stop hook registered" \
     || info "Stop hook not registered (run ./start.sh --install)"
@@ -255,14 +273,24 @@ else
 fi
 
 # ── 5. Hook and service (only with --install) ────────────────────────────────
-if [[ "${DO_INSTALL}" == true ]]; then
-  header "5. Registering the Stop hook and systemd service"
-  info "This writes to ${SETTINGS} and ${UNIT}."
+if [[ "${DO_INSTALL}" == true || "${DO_AUTOSTART}" == true ]]; then
+  if [[ "${DO_AUTOSTART}" == true ]]; then
+    header "5. Registering the Stop hook and enabling autostart"
+    info "This writes to ${SETTINGS} and ${UNIT}."
+  else
+    header "5. Registering the Stop hook"
+    info "This writes to ${SETTINGS} only. No service, no autostart."
+  fi
   info "Undo at any time with: ./start.sh --uninstall"
-  (cd "${PROJECT_ROOT}" && uv run claudechat install 2>&1 | grep -viE "warn") \
+  INSTALL_CMD="install"; [[ "${DO_AUTOSTART}" == true ]] && INSTALL_CMD="autostart"
+  (cd "${PROJECT_ROOT}" && uv run claudechat "${INSTALL_CMD}" 2>&1 | grep -viE "warn") \
     || die "Install failed"
   echo
-  ok "Installed. The daemon now starts with your session."
+  if [[ "${DO_AUTOSTART}" == true ]]; then
+    ok "Installed. The daemon now starts with your session."
+  else
+    ok "Hook registered. Start speech per session with: ./start.sh"
+  fi
   print_status
   echo
   printf "┌──────────────────────────────────────────────────────────────┐\n"
@@ -275,6 +303,7 @@ if [[ "${DO_INSTALL}" == true ]]; then
   printf "├──────────────────────────────────────────────────────────────┤\n"
   printf "│  %-59s │\n" "Speech is OFF until you run: claudechat on"
   printf "│  %-59s │\n" "Keep /voice enabled — it is input, this is output."
+  printf "│  %-59s │\n" "Autostart later:   ./start.sh --autostart"
   printf "│  %-59s │\n" "Remove everything: ./start.sh --uninstall"
   printf "└──────────────────────────────────────────────────────────────┘\n"
   echo

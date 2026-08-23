@@ -65,6 +65,16 @@ def _daemon_running(config: Config) -> bool:
     return (config.runtime_dir / "engine.sock").is_socket()
 
 
+def _autostart_installed() -> bool:
+    return (Path.home() / ".config" / "systemd" / "user" / "claudechat.service").exists()
+
+
+def _how_to_start() -> str:
+    if _autostart_installed():
+        return "start it with:  systemctl --user start claudechat"
+    return "start it with:  ./start.sh        (this session only)"
+
+
 def command_toggle(argument: str) -> int:
     """on / off / toggle / status."""
     if argument == "status":
@@ -72,8 +82,10 @@ def command_toggle(argument: str) -> int:
         speaking = "on" if _is_enabled() else "off"
         running = "running" if _daemon_running(config) else "NOT running"
         print(f"speech: {speaking}    daemon: {running}    voice: {config.tts_voice}")
+        autostart = "on" if _autostart_installed() else "off"
+        print(f"autostart: {autostart}")
         if not _daemon_running(config):
-            print("start it with:  systemctl --user start claudechat")
+            print(_how_to_start())
         return 0
 
     if argument == "toggle":
@@ -85,7 +97,7 @@ def command_toggle(argument: str) -> int:
     config = load_config()
     print(f"speech {'on' if enabled else 'off'}")
     if enabled and not _daemon_running(config):
-        print("daemon is not running — start it with:  systemctl --user start claudechat")
+        print(f"daemon is not running — {_how_to_start()}")
     return 0
 
 
@@ -132,18 +144,25 @@ def main(argv: list[str] | None = None) -> int:
         return command_serve()
     if command in {"on", "off", "toggle", "status"}:
         return command_toggle(command)
-    if command == "install":
+    if command in {"install", "autostart"}:
         from claudechat.cli.install import command_install
 
-        return command_install()
+        return command_install(with_service=command == "autostart")
+
+    if command == "uninstall-service":
+        from claudechat.cli.install import remove_service
+
+        print("autostart removed" if remove_service() else "no autostart was installed")
+        return 0
 
     print(
-        "usage: claudechat [serve|on|off|toggle|status|install]\n"
+        "usage: claudechat [serve|on|off|toggle|status|install|autostart]\n"
         "  (no argument)  interactive voice session\n"
-        "  serve          run the always-on daemon\n"
+        "  serve          run the daemon in the foreground\n"
         "  on|off|toggle  speak Claude Code replies, or stop speaking them\n"
         "  status         show whether speech and the daemon are on\n"
-        "  install        register the Stop hook and the systemd user service",
+        "  install        register the Stop hook only (no autostart)\n"
+        "  autostart      also install and enable the systemd user service",
         file=sys.stderr,
     )
     return 2
