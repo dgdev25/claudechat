@@ -291,10 +291,12 @@ if [[ -f "${UNIT}" ]]; then
 else
   stop_daemon >/dev/null 2>&1 || true
   info "Starting daemon (models load once, takes about 30s)..."
-  # setsid and </dev/null so the daemon inherits none of this script's file
-  # descriptors. Without that it holds the script's stdout open, and anything
-  # piping start.sh appears to hang long after the summary has printed.
-  (cd "${PROJECT_ROOT}" && setsid nohup uv run claudechat serve \
+  # --fork is load-bearing. Plain `setsid` only forks when it is not already a
+  # process-group leader; inside a backgrounded subshell it IS one, so it execs
+  # instead and the daemon stays a direct child. The script then blocks in
+  # wait() at exit and anything piping start.sh hangs long after the summary
+  # has printed. --fork reparents the daemon away so the script can exit.
+  (cd "${PROJECT_ROOT}" && setsid --fork uv run claudechat serve \
      </dev/null >"${LOG_DIR}/daemon.log" 2>&1 &)
   wait_for_socket "claudechat daemon" "${LOG_DIR}/daemon.log"
   [[ -n "$(daemon_pids)" ]] || die "Daemon exited immediately — check ${LOG_DIR}/daemon.log"
