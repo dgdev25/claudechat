@@ -113,3 +113,70 @@ def test_removes_8bit_c1_control_codes():
 
 def test_removes_8bit_osc_c1_code():
     assert strip_control_characters("text\x9d0\x07more") == "textmore"
+
+
+def test_streams_text_before_any_newline_arrives():
+    """The whole point of streaming: speech must start mid-sentence.
+
+    Replies are often one paragraph with no newline until the very end. When
+    feed() only emitted on newlines, nothing reached the speaker until Claude
+    had finished writing — measured at over two seconds of dead air per turn.
+    """
+    stripper = SpeechStripper()
+    first = stripper.feed("Sunlight scatters more at blue wavelengths, ")
+    assert first.strip(), "nothing emitted before a newline — streaming is defeated"
+    assert "Sunlight scatters" in first
+
+
+def test_streaming_never_repeats_already_spoken_text():
+    stripper = SpeechStripper()
+    spoken = "".join(
+        stripper.feed(f) for f in ("The sky ", "is blue ", "because of ", "scattering.")
+    ) + stripper.flush()
+    assert spoken.count("The sky") == 1
+    assert spoken.count("scattering") == 1
+
+
+def test_code_is_still_suppressed_when_streamed_in_fragments():
+    stripper = SpeechStripper()
+    spoken = "".join(
+        stripper.feed(f) for f in ("Here.\n", "```py\n", "secret_key = 1\n", "```\n", "Done.")
+    ) + " " + stripper.flush()
+    assert "secret_key" not in spoken
+    assert "Here." in spoken and "Done." in spoken
+
+
+def test_unclosed_inline_code_waits_for_its_closing_backtick():
+    stripper = SpeechStripper()
+    held = stripper.feed("Run `pytest")
+    assert held.strip() == "", "emitted an open inline-code span; the backtick would be spoken"
+    rest = stripper.feed(" -v` now.")
+    assert "pytest -v now." in rest
+    assert "`" not in rest
+
+
+def test_partial_fence_marker_is_not_spoken_as_text():
+    stripper = SpeechStripper()
+    assert stripper.feed("Look:\n").strip() == "Look:"
+    assert stripper.feed("``").strip() == "", "a forming fence marker must be held back"
+
+
+def test_mid_word_streaming_does_not_split_words():
+    """Emitting a partial line must not insert a separator.
+
+    The tail continues the word already spoken, so joining it with a space
+    turns "Sunlight" into "Sunl ight" — which the synthesiser then pronounces
+    as two words. Introduced when partial emission was added; caught by ear.
+    """
+    stripper = SpeechStripper()
+    spoken = "".join(
+        stripper.feed(f) for f in ("Sunl", "ight scat", "ters at blue ", "wavelengths.")
+    ) + stripper.flush()
+    assert "Sunlight scatters" in spoken
+    assert "Sunl ight" not in spoken
+
+
+def test_completed_lines_still_get_separated():
+    stripper = SpeechStripper()
+    spoken = "".join(stripper.feed(f) for f in ("First line.\n", "Second line.")) + stripper.flush()
+    assert "First line. Second line." in spoken

@@ -14,6 +14,8 @@ _LIST_MARKER = re.compile(r"^\s*([-*+]|\d+[.)])\s+")
 _EMPHASIS = re.compile(r"(\*\*|__|\*|~~|(?<!\w)_|_(?!\w))")
 _INLINE_CODE = re.compile(r"`([^`]*)`")
 _LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+# A line that so far is only fence-ish characters may still become a fence.
+_PARTIAL_FENCE = re.compile(r"^\s*(`{1,3}|~{1,3})\s*$")
 
 
 def strip_control_characters(text: str) -> str:
@@ -33,6 +35,7 @@ class SpeechStripper:
     def __init__(self) -> None:
         self._buffer = ""
         self._in_fence = False
+        self._emitted = 0
         self._fence_char: str | None = None
 
     def feed(self, fragment: str) -> str:
@@ -40,21 +43,62 @@ class SpeechStripper:
         out: list[str] = []
         while "\n" in self._buffer:
             line, self._buffer = self._buffer.split("\n", 1)
+            self._emitted = 0
             rendered = self._line(line)
             if rendered:
                 out.append(rendered)
-        return " ".join(out) + (" " if out else "")
+
+        # Release the unfinished line too, when it is safe to do so. Waiting for
+        # a newline sounds harmless but defeats the whole streaming design: a
+        # reply that is one long paragraph produces no newline until it ends, so
+        # nothing could be spoken until Claude had finished writing. Measured at
+        # over two seconds of dead air per turn.
+        # Completed lines are separated by a space; the unfinished tail is NOT.
+        # It continues the word already emitted, so inserting a separator here
+        # splits words down the middle — "Sunlight" arrives as "Sunl ight".
+        text = " ".join(out)
+        if out:
+            text += " "
+        return text + self._safe_partial()
+
+    def _safe_partial(self) -> str:
+        """Render the trailing unfinished line, or "" if it cannot be judged yet.
+
+        Held back when: inside a fenced block; the line so far could still turn
+        into a fence marker; or an inline-code span is open, since its closing
+        backtick has not arrived and emitting now would speak the backtick.
+        """
+        if self._in_fence:
+            return ""
+        pending = self._buffer
+        if _PARTIAL_FENCE.match(pending):
+            return ""
+        if pending.count("`") % 2 == 1:
+            return ""
+
+        rendered = self._line(pending, keep_state=True)
+        if len(rendered) <= self._emitted:
+            return ""
+        fresh, self._emitted = rendered[self._emitted:], len(rendered)
+        return fresh
 
     def flush(self) -> str:
         remaining, self._buffer = self._buffer, ""
+        emitted, self._emitted = self._emitted, 0
         if self._in_fence:
             return ""
-        return self._line(remaining)
+        rendered = self._line(remaining)
+        return rendered[emitted:].strip() if len(rendered) > emitted else ""
 
-    def _line(self, line: str) -> str:
+    def _line(self, line: str, keep_state: bool = False) -> str:
+        # keep_state renders an unfinished line for early speech without
+        # committing fence state: the same text arrives again once its newline
+        # lands, and toggling twice would leave the fence tracking inverted.
         fence_match = _FENCE.match(line)
         if fence_match:
             fence_char = fence_match.group(1)[0]
+            if keep_state:
+                return ""
             if self._in_fence and self._fence_char == fence_char:
                 self._in_fence = False
                 self._fence_char = None
