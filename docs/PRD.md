@@ -54,6 +54,37 @@ an API key instead of the subscription login, shipping no LICENSE file, or being
 | Interrupting works | Time from barge-in keypress to audio silence | ≤ 300 ms |
 | Hook never duplicates speech | Duplicate or recursive utterances per 50 hook turns | 0 |
 
+### Measured result at end of phase 1 (2026-08-23) — TWO TARGETS MISSED
+
+Median of three runs on an otherwise idle machine, measured the way the app actually
+behaves (first speakable chunk, not a fixed sentence):
+
+| Stage | Measured | Design estimate |
+|---|---|---|
+| Transcribe | 0.26 s | 0.21 s |
+| Claude, to first complete chunk | 3.74 s (range 3.42–5.73) | 2.57 s |
+| Synthesise that chunk | 0.84 s | 0.32 s |
+| **Total to first audio** | **4.84 s — target ≤ 3.5 s, MISSED** | 3.1 s |
+| **Speech layer only** | **1.10 s — target ≤ 0.8 s, MISSED** | 0.53 s |
+
+Cause, not excuse. Claude is 77 % of the total and no local change touches it. The design
+estimate of 2.57 s was a single lucky sample; the median over repeated runs is 3.74 s. The
+synthesis estimate was measured on a 27-character sentence, whereas real first chunks run to
+about 85 characters because the early-comma rule only fires at the first comma, which is often
+well into the sentence.
+
+Two measured levers, neither yet applied:
+
+1. **Process startup is 0.89 s of every turn** — measured as 0.89 s of the 1.66 s to first
+   token, roughly half. A persistent headless process (open question 2) would recover it.
+2. **Release the first chunk sooner.** `first_chunk_max_words` is 30. Lowering it shortens
+   both the wait for a chunk boundary and the synthesis of that chunk, at some cost to
+   phrasing.
+
+Together these plausibly reach the 3.5 s target; neither alone does. Until one is applied the
+honest figure is ≈4.8 s, and the targets above stand as unmet rather than being revised to
+match the result.
+
 Baseline measurements taken on this machine (Intel i9-14900K, CPU only) during design:
 Kokoro TTS real-time factor 0.168 with first sentence in 0.32 s; faster-whisper `base.en`
 transcribed a 3.67 s clip in 0.21 s; `claude -p` produced its first complete sentence in
