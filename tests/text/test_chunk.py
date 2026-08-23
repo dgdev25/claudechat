@@ -36,3 +36,14 @@ def test_fragmented_input_reassembles():
     c = SentenceChunker()
     out = c.feed("Hel") + c.feed("lo wor") + c.feed("ld. ")
     assert out == ["Hello world."]
+
+
+def test_first_chunk_on_word_count_limit_ends_with_comma():
+    # When word-count path releases the first chunk, it should end with a comma
+    # for proper Kokoro intonation (continuing, not final)
+    c = SentenceChunker(first_chunk_min_chars=5, first_chunk_max_words=5)
+    # Feed text that will exceed word limit before hitting a terminator
+    # 6 words at the start, word-count path kicks in and adds comma
+    out = c.feed("one two three four five six and more")
+    assert len(out) == 1
+    assert out[0] == "one two three four five,"

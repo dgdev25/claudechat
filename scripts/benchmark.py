@@ -7,6 +7,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
+from claudechat.claude.persistent import PersistentClaudeRunner
 from claudechat.claude.runner import ClaudeRunner, VOICE_SYSTEM_PROMPT
 from claudechat.config import Config
 from claudechat.speech.synthesizer import KokoroSynthesizer
@@ -59,6 +60,37 @@ def main() -> None:
         return
     print(f"CLAUDE first speakable sentence={first_chunk:.2f}s")
     print(f"TOTAL to first audio ≈ {stt_seconds + first_chunk + tts_seconds:.2f}s (target ≤ 3.5s)")
+
+    persistent_runner = PersistentClaudeRunner(config, "benchmark", VOICE_SYSTEM_PROMPT)
+
+    def timed_turn(prompt: str) -> float | None:
+        # The stream must be consumed to its result: a turn abandoned early
+        # drops the process, which would make the next "warm" turn cold.
+        turn_stripper, turn_chunker = SpeechStripper(), SentenceChunker()
+        first = None
+        start = time.perf_counter()
+        for event in persistent_runner.stream(prompt):
+            if event.kind == "text" and first is None:
+                for _ in turn_chunker.feed(turn_stripper.feed(event.text)):
+                    first = time.perf_counter() - start
+                    break
+        if first is None:
+            for _ in turn_chunker.feed(turn_stripper.flush()) + turn_chunker.flush():
+                first = time.perf_counter() - start
+                break
+        return first
+
+    try:
+        warm_first = timed_turn("Say the word one.")
+        warm_second = timed_turn("Say the word two.")
+        if warm_first is not None:
+            print(f"CLAUDE warm turn first sentence={warm_first:.2f}s (turn 1, cold process)")
+        if warm_second is not None:
+            print(f"CLAUDE warm turn first sentence={warm_second:.2f}s (turn 2, warm process)")
+        if warm_second is not None:
+            print(f"Cold vs warm: {first_chunk:.2f}s → {warm_second:.2f}s")
+    finally:
+        persistent_runner.close()
 
 
 if __name__ == "__main__":

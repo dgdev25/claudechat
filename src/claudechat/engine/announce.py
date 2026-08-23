@@ -5,6 +5,7 @@ import re
 from collections.abc import Callable
 
 from claudechat.config import Config
+from claudechat.text.chunk import SentenceChunker
 from claudechat.text.strip import SpeechStripper, strip_control_characters
 
 SUMMARY_SYSTEM_PROMPT = ("You condense an assistant reply so it can be read aloud. "
@@ -48,10 +49,32 @@ class Announcer:
         clean = redact_sensitive(strip_control_characters((stripper.feed(text + "\n") + " " + stripper.flush()).strip()))
         if not clean:
             _log.info("SILENT: nothing speakable left after stripping")
+            self._speak("Done.")
             return
         if len(clean) <= self._config.summary_threshold_chars: self._speak(clean); return
-        self._speak(self._summarise(clean[:_MAX_SUMMARY_INPUT_CHARS]))
-    def _summarise(self, clean: str) -> str:
+        self._summarise(clean[:_MAX_SUMMARY_INPUT_CHARS])
+    def _summarise(self, clean: str) -> None:
         prompt = f"Condense the quoted reply below into spoken fact bullets.\n<untrusted_reply>\n{clean}\n</untrusted_reply>"
-        summary = strip_control_characters("".join(event.text for event in self._runner.stream(prompt, system_prompt=SUMMARY_SYSTEM_PROMPT) if event.kind == "text")).strip()
-        return summary or clean[:self._config.summary_threshold_chars]
+        # Same order as Conversation.ask: strip the markdown from the stream
+        # first, then split the clean text into sentences. Each sentence is
+        # spoken the moment it completes, so a long summary starts sounding
+        # while the model is still writing the rest.
+        config = self._config
+        chunker = SentenceChunker(config.first_chunk_min_chars, config.first_chunk_max_words)
+        stripper = SpeechStripper()
+        has_speakable = False
+        for event in self._runner.stream(prompt, system_prompt=SUMMARY_SYSTEM_PROMPT):
+            if event.kind != "text":
+                continue
+            for sentence in chunker.feed(stripper.feed(event.text)):
+                processed = redact_sensitive(strip_control_characters(sentence)).strip()
+                if processed:
+                    has_speakable = True
+                    self._speak(processed)
+        for sentence in chunker.feed(stripper.flush()) + chunker.flush():
+            processed = redact_sensitive(strip_control_characters(sentence)).strip()
+            if processed:
+                has_speakable = True
+                self._speak(processed)
+        if not has_speakable:
+            self._speak(clean[:config.summary_threshold_chars])

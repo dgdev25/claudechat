@@ -65,7 +65,7 @@ class SentenceChunker:
 
         words = self._buffer.split()
         if len(words) > self._max_words:
-            chunk = " ".join(words[: self._max_words])
+            chunk = " ".join(words[: self._max_words]) + ","
             self._buffer = " ".join(words[self._max_words :])
             self._is_first = False
             return chunk

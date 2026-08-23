@@ -128,6 +128,7 @@ def start_daemon(timeout_seconds: float = 120.0) -> bool:
 
     deadline = time.monotonic() + timeout_seconds
     socket_path = config.runtime_dir / "engine.sock"
+    poll_delay = 0.05
     while time.monotonic() < deadline:
         if socket_path.is_socket():
             probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -139,7 +140,8 @@ def start_daemon(timeout_seconds: float = 120.0) -> bool:
                 pass
             finally:
                 probe.close()
-        time.sleep(0.5)
+        time.sleep(poll_delay)
+        poll_delay = min(poll_delay * 1.5, 0.5)
     return False
 
 

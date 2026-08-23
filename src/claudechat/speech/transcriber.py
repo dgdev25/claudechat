@@ -15,7 +15,7 @@ class WhisperTranscriber:
             config.stt_model,
             device="cpu",
             compute_type="int8",
-            cpu_threads=8,
+            cpu_threads=config.stt_cpu_threads,
         )
 
     def transcribe(self, pcm: bytes, sample_rate: int) -> str:

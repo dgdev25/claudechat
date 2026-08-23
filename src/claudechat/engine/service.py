@@ -71,8 +71,8 @@ class RateLimiter:
 class EngineService:
     """Unix socket exposing only the announcement operation."""
 
-    def __init__(self, config: Config, on_announce: Callable[[str], None]) -> None:
-        self._config, self._on_announce = config, on_announce
+    def __init__(self, config: Config, on_announce: Callable[[str], None], on_drop: Callable[[], None] | None = None) -> None:
+        self._config, self._on_announce, self._on_drop = config, on_announce, on_drop
         self._limiter = RateLimiter(config.hook_min_interval_seconds)
         self._server: socket.socket | None = None
         self._thread: threading.Thread | None = None
@@ -160,6 +160,11 @@ class EngineService:
             self._reply(connection, b'{"status":"error","reason":"no text"}')
             return
         if not self._limiter.allow(time.monotonic()):
+            if self._on_drop is not None:
+                try:
+                    self._on_drop()
+                except Exception:
+                    pass
             _log.info("DROPPED (rate limited, one per %.0fs): %.60s",
                       self._config.hook_min_interval_seconds, text.replace("\n", " "))
             self._reply(connection, b'{"status":"dropped","reason":"rate limited"}')

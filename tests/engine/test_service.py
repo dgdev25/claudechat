@@ -136,3 +136,49 @@ def test_libc_peer_lookup_degrades_to_none_not_a_crash():
     finally:
         left.close()
         right.close()
+
+
+def test_on_drop_callback_invoked_on_rate_limited_request(tmp_path):
+    """Verify that on_drop is called exactly once for the second rapid request."""
+    import time
+
+    drop_count = [0]
+
+    def on_drop():
+        drop_count[0] += 1
+
+    config = replace(Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=1.0)
+    service = EngineService(config, on_announce=lambda text: None, on_drop=on_drop)
+    path = service.start()
+    try:
+        # Send two announcements rapidly.
+        _send(path, json.dumps({"text": "first"}).encode())
+        _send(path, json.dumps({"text": "second"}).encode())
+        time.sleep(0.1)  # Let async processing finish.
+        assert drop_count[0] == 1, f"on_drop should be called once, got {drop_count[0]}"
+    finally:
+        service.stop()
+
+
+def test_on_drop_exception_does_not_prevent_reply(tmp_path):
+    """Verify that even if on_drop raises, the client still receives a response."""
+    import time
+
+    def on_drop_raises():
+        raise ValueError("intentional error in on_drop")
+
+    config = replace(Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=1.0)
+    seen = []
+    service = EngineService(config, on_announce=seen.append, on_drop=on_drop_raises)
+    path = service.start()
+    try:
+        # Send first request.
+        reply1 = _send(path, json.dumps({"text": "first"}).encode())
+        assert b"ok" in reply1
+        # Send second request immediately (will be rate-limited).
+        reply2 = _send(path, json.dumps({"text": "second"}).encode())
+        assert b"dropped" in reply2 or b"error" in reply2, "client should get a response even if on_drop raised"
+        time.sleep(0.1)
+        assert seen == ["first"], "first announcement should be seen, second dropped"
+    finally:
+        service.stop()
