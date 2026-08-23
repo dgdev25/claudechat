@@ -51,8 +51,12 @@ def is_macos() -> bool:
     return platform.system() == "Darwin"
 
 
-def playback_command(sample_rate: int) -> list[str]:
-    """Command that plays raw s16le mono PCM arriving on stdin."""
+def playback_command(sample_rate: int, target: str = "") -> list[str]:
+    """Command that plays raw s16le mono PCM arriving on stdin.
+
+    On Linux with PipeWire, target specifies the sink node name (e.g.
+    "claudechat_ec_sink"). On macOS, target is ignored (no equivalent).
+    """
     if is_macos():
         sox = shutil.which("play")
         if sox:
@@ -67,13 +71,20 @@ def playback_command(sample_rate: int) -> list[str]:
 
     pw_cat = shutil.which("pw-cat")
     if pw_cat:
-        return [pw_cat, "--playback", "--raw", "--format=s16",
+        cmd = [pw_cat, "--playback", "--raw", "--format=s16",
                 f"--rate={sample_rate}", "--channels=1", "-"]
+        if target:
+            cmd.extend(["--target", target])
+        return cmd
     raise AudioUnavailable(_linux_hint("playback"))
 
 
-def capture_command(sample_rate: int) -> list[str]:
-    """Command that writes raw s16le mono PCM from the microphone to stdout."""
+def capture_command(sample_rate: int, target: str = "") -> list[str]:
+    """Command that writes raw s16le mono PCM from the microphone to stdout.
+
+    On Linux with PipeWire, target specifies the source node name (e.g.
+    "claudechat_ec_source"). On macOS, target is ignored (no equivalent).
+    """
     if is_macos():
         rec = shutil.which("rec")
         if rec:
@@ -89,6 +100,9 @@ def capture_command(sample_rate: int) -> list[str]:
 
     pw_record = shutil.which("pw-record")
     if pw_record:
-        return [pw_record, "--format=s16", f"--rate={sample_rate}",
+        cmd = [pw_record, "--format=s16", f"--rate={sample_rate}",
                 "--channels=1", "-"]
+        if target:
+            cmd.extend(["--target", target])
+        return cmd
     raise AudioUnavailable(_linux_hint("recording"))

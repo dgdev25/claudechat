@@ -13,6 +13,9 @@ hands_free = false         # Use VAD instead of Enter key to start/stop recordin
 thinking_cue = true        # Play tone while Claude thinks
 vad_silence_ms = 700       # Silence duration to end recording (200-5000)
 vad_threshold = 0.5        # Speech detection threshold (0.1-0.95)
+voice_barge_in = false     # Interrupt reply if speech is detected while speaking
+capture_target = ""        # PipeWire source node name (e.g. "claudechat_ec_source"); empty = system default
+playback_target = ""       # PipeWire sink node name (e.g. "claudechat_ec_sink"); empty = system default
 
 [claude]
 claude_model = "sonnet"    # Model for conversation turns

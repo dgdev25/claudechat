@@ -20,7 +20,7 @@ class Playback:
     lock, or cancel() would wait on the pipe draining.
     """
 
-    def __init__(self, sample_rate: int) -> None:
+    def __init__(self, sample_rate: int, target: str = "") -> None:
         self._sample_rate = sample_rate
         self._process: subprocess.Popen[bytes] | None = None
         self._chunks: deque[tuple[int, bytes]] = deque()
@@ -31,7 +31,7 @@ class Playback:
         self._feeder: threading.Thread | None = None
         # Resolved per platform; raises AudioUnavailable with install
         # instructions rather than failing obscurely at spawn time.
-        self._argv = playback_command(sample_rate)
+        self._argv = playback_command(sample_rate, target=target)
 
     def play(self, pcm: bytes) -> None:
         """Queue PCM and return immediately. Chunks play in order, gapless."""

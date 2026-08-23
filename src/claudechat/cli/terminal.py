@@ -48,6 +48,8 @@ class VoiceSession:
         wait_for_stop: Callable[[], str] = input,
         gate_factory: Callable[[], SpeechGate] | None = None,
         enable_barge_in: bool = True,
+        barge_capture_factory: Callable[[], Capture] | None = None,
+        barge_gate_factory: Callable[[], SpeechGate] | None = None,
     ) -> None:
         self.config = config
         self.capture = capture
@@ -58,6 +60,8 @@ class VoiceSession:
         self._wait_for_stop = wait_for_stop
         self._gate_factory = gate_factory or self._default_gate_factory
         self._enable_barge_in = enable_barge_in
+        self._barge_capture_factory = barge_capture_factory or (lambda: Capture(config))
+        self._barge_gate_factory = barge_gate_factory
         self.barged_in = False
 
         # Thinking earcon: 120ms @ 660Hz sine wave with fade
@@ -178,6 +182,7 @@ class VoiceSession:
         self._interrupted.set()
         self._record_now.set()
         self.barged_in = True
+        print("\r\x1b[2K\x1b[2m(interrupted)\x1b[0m", end="", flush=True)
 
     def _respond(self, heard: str) -> None:
         """Shared reply logic for both run_turn and run_hands_free_turn."""
@@ -192,6 +197,14 @@ class VoiceSession:
         spoken_any = False
         self._interrupted.clear()
 
+        # Drain stale Enter events queued before _respond started, so they
+        # cannot instantly kill this reply.
+        try:
+            while True:
+                self._enter_events.get_nowait()
+        except queue.Empty:
+            pass
+
         # Enter interrupts the reply in both modes. Voice-interrupt during
         # playback stays out until echo handling exists — in hands-free mode
         # the microphone would hear the speakers and barge in on itself.
@@ -200,6 +213,14 @@ class VoiceSession:
                 target=self._barge_in_listener, daemon=True
             )
             listener_thread.start()
+
+        # Voice barge-in: if enabled and config.voice_barge_in, start a listener
+        # that detects speech and interrupts.
+        if self._enable_barge_in and self.config.voice_barge_in:
+            barge_thread = threading.Thread(
+                target=self._voice_barge_in_listener, daemon=True
+            )
+            barge_thread.start()
 
         for generation, chunk in self.conversation.ask(heard):
             if self._interrupted.is_set():
@@ -224,6 +245,8 @@ class VoiceSession:
 
         if spoken_any:
             print()
+        elif not self._interrupted.is_set():
+            print("\r\x1b[2K(no reply)", end="", flush=True)
 
         # Speech outlives synthesis by ~4x, so the barge-in window must cover
         # the audio draining too — clearing the flag here, before wait(),
@@ -252,6 +275,42 @@ class VoiceSession:
                     pass
         except Exception:
             pass
+
+    def _voice_barge_in_listener(self) -> None:
+        """Listen for voice while response is playing; interrupt if speech detected.
+
+        Uses a stricter SpeechGate to avoid false positives from playback audio.
+        """
+        capture = None
+        try:
+            capture = self._barge_capture_factory()
+            capture.start()
+
+            # Build the stricter gate: use a higher threshold and longer min_speech
+            if self._barge_gate_factory is not None:
+                gate = self._barge_gate_factory()
+            else:
+                gate = SpeechGate(
+                    sample_rate=capture.sample_rate,
+                    threshold=min(0.95, self.config.vad_threshold + 0.1),
+                    silence_ms=self.config.vad_silence_ms,
+                    min_speech_ms=400,
+                )
+
+            while self._responding.is_set():
+                pcm = capture.take()
+                if pcm:
+                    state = gate.feed(pcm)
+                    if state == "speech":
+                        self._interrupt_response()
+                        return
+                time.sleep(0.05)
+        except Exception:
+            # Log/ignore: never crash the reply
+            pass
+        finally:
+            if capture is not None:
+                capture.stop()
 
     def run_turn(self) -> str:
         """Record, transcribe, ask, speak. Restart immediately after speaking."""
@@ -385,7 +444,7 @@ class Engine:
         """Load the speech models now, so the first spoken reply is not delayed."""
         if self._synth is None:
             self._synth = KokoroSynthesizer(self.config)
-            self._playback = Playback(sample_rate=self._synth.sample_rate)
+            self._playback = Playback(sample_rate=self._synth.sample_rate, target=self.config.playback_target)
         try:
             self.conversation_runner.warm()
         except Exception:
@@ -412,7 +471,7 @@ class Engine:
             return
         if self._synth is None:
             self._synth = KokoroSynthesizer(self.config)
-            self._playback = Playback(sample_rate=self._synth.sample_rate)
+            self._playback = Playback(sample_rate=self._synth.sample_rate, target=self.config.playback_target)
         chunker = SentenceChunker(
             self.config.first_chunk_min_chars, self.config.first_chunk_max_words
         )

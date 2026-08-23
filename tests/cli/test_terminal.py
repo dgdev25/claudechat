@@ -435,3 +435,87 @@ def test_reply_chunks_reach_playback_with_the_real_conversation():
         _time.sleep(0.02)
     # Earcon plus three spoken sentences.
     assert len(playback.played) >= 4, f"reply was muted: {len(playback.played)} plays"
+
+
+def test_voice_barge_in_interrupts_on_speech():
+    """Test that voice barge-in detects speech and interrupts the reply."""
+    config = Config(voice_barge_in=True)
+
+    # Mock capture that returns audio on first call
+    class MockBargeCapture:
+        sample_rate = 16000
+        def __init__(self):
+            self.started = False
+            self.call_count = 0
+        def start(self):
+            self.started = True
+        def take(self):
+            self.call_count += 1
+            if self.call_count <= 2:
+                # Return silence first
+                return b"\x00\x00" * 100
+            # Then return audio (non-empty)
+            return b"\x01\x02" * 100
+        def stop(self):
+            return b""
+
+    # Mock gate that returns "speech" on feed calls
+    class MockBargeGate:
+        def __init__(self):
+            self.feed_count = 0
+        def feed(self, pcm):
+            self.feed_count += 1
+            if self.feed_count >= 2:
+                return "speech"
+            return "waiting"
+
+    def barge_capture_factory():
+        return MockBargeCapture()
+
+    def barge_gate_factory():
+        return MockBargeGate()
+
+    playback = FakePlayback()
+    playback.wait = lambda timeout=None: None
+    conversation = FakeConversation(chunks=["chunk1", "chunk2", "chunk3"])
+
+    session = VoiceSession(
+        config, FakeCapture(), FakeTranscriber(), FakeSynth(),
+        playback, conversation, wait_for_stop=lambda: None,
+        enable_barge_in=True,
+        barge_capture_factory=barge_capture_factory,
+        barge_gate_factory=barge_gate_factory,
+    )
+    session._respond("test")
+    time.sleep(0.2)  # Let barge-in listener run
+
+    # Verify interrupt was called (playback cancelled, conversation interrupted)
+    assert playback.cancelled or session._interrupted.is_set()
+
+
+def test_stale_enter_event_does_not_interrupt():
+    """Test that an Enter event queued before _respond does not interrupt the reply."""
+    config = Config()
+
+    # Pre-populate enter_events with a stale event
+    playback = FakePlayback()
+    playback.wait = lambda timeout=None: None
+    conversation = FakeConversation(chunks=["A compiler translates code."])
+
+    session = VoiceSession(
+        config, FakeCapture(), FakeTranscriber(), FakeSynth(),
+        playback, conversation,
+        wait_for_stop=lambda: threading.Event().wait(),  # Blocks forever
+        enable_barge_in=True,
+    )
+
+    # Queue a stale Enter event before _respond
+    session._enter_events.put(None)
+
+    # Run _respond with a chunk
+    session._respond("test")
+    time.sleep(0.2)  # Wait for processing
+
+    # The stale event should have been drained and not cause an interrupt
+    assert not session._interrupted.is_set()
+    assert not playback.cancelled

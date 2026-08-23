@@ -58,3 +58,51 @@ def test_linux_without_tools_names_the_fix(monkeypatch):
     with pytest.raises(AudioUnavailable) as excinfo:
         playback_command(16000)
     assert "pipewire" in str(excinfo.value).lower()
+
+
+def test_linux_playback_target_appended_when_non_empty(monkeypatch):
+    monkeypatch.setattr(backend.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(backend.shutil, "which", _fake_which({"pw-cat"}))
+    cmd = playback_command(24000, target="claudechat_ec_sink")
+    assert "--target" in cmd
+    target_index = cmd.index("--target")
+    assert cmd[target_index + 1] == "claudechat_ec_sink"
+
+
+def test_linux_playback_target_absent_when_empty(monkeypatch):
+    monkeypatch.setattr(backend.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(backend.shutil, "which", _fake_which({"pw-cat"}))
+    cmd = playback_command(24000, target="")
+    assert "--target" not in cmd
+
+
+def test_linux_capture_target_appended_when_non_empty(monkeypatch):
+    monkeypatch.setattr(backend.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(backend.shutil, "which", _fake_which({"pw-record"}))
+    cmd = capture_command(16000, target="claudechat_ec_source")
+    assert "--target" in cmd
+    target_index = cmd.index("--target")
+    assert cmd[target_index + 1] == "claudechat_ec_source"
+
+
+def test_linux_capture_target_absent_when_empty(monkeypatch):
+    monkeypatch.setattr(backend.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(backend.shutil, "which", _fake_which({"pw-record"}))
+    cmd = capture_command(16000, target="")
+    assert "--target" not in cmd
+
+
+def test_macos_ignores_playback_target(monkeypatch):
+    monkeypatch.setattr(backend.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(backend.shutil, "which", _fake_which({"play"}))
+    cmd = playback_command(24000, target="some_target")
+    assert "--target" not in cmd
+    assert "some_target" not in cmd
+
+
+def test_macos_ignores_capture_target(monkeypatch):
+    monkeypatch.setattr(backend.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(backend.shutil, "which", _fake_which({"rec"}))
+    cmd = capture_command(16000, target="some_target")
+    assert "--target" not in cmd
+    assert "some_target" not in cmd

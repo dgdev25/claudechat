@@ -22,7 +22,7 @@ class Capture:
         self._reader: threading.Thread | None = None
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
-        self._argv = capture_command(self.sample_rate)
+        self._argv = capture_command(self.sample_rate, target=config.capture_target)
 
     def start(self) -> None:
         with self._lock:
