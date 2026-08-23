@@ -236,3 +236,26 @@ def test_rejects_voice_reply_window_seconds_out_of_range(tmp_path):
         assert "voice_reply_window_seconds" in str(e)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_focus_cwd_defaults_to_empty(tmp_path):
+    cfg = load_config(tmp_path / "absent.toml")
+    assert cfg.focus_cwd == ""
+
+
+def test_focus_cwd_from_config(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[hook]\nfocus_cwd = "/home/user/project"\n')
+    cfg = load_config(p)
+    assert cfg.focus_cwd == "/home/user/project"
+
+
+def test_rejects_control_characters_in_focus_cwd(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[hook]\nfocus_cwd = "/home/user\\u0001project"\n')
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "focus_cwd" in str(e)
+    else:
+        raise AssertionError("expected ValueError")

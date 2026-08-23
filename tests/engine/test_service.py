@@ -38,18 +38,18 @@ def test_socket_is_owner_only(tmp_path):
 def test_accepts_a_valid_announcement(tmp_path):
     seen = []
     config = replace(Config(), runtime_dir=tmp_path / "run")
-    service = EngineService(config, on_announce=seen.append)
+    service = EngineService(config, on_announce=lambda text, cwd: seen.append((text, cwd)))
     path = service.start()
     try:
         assert b"ok" in _send(path, json.dumps({"text": "All tests passed."}).encode())
-        assert seen == ["All tests passed."]
+        assert seen == [("All tests passed.", "")]
     finally:
         service.stop()
 
 
 def test_rejects_oversized_body(tmp_path):
     seen = []
-    service = EngineService(replace(Config(), runtime_dir=tmp_path / "run"), seen.append)
+    service = EngineService(replace(Config(), runtime_dir=tmp_path / "run"), lambda text, cwd: seen.append((text, cwd)))
     path = service.start()
     try:
         assert b"error" in _send(path, b'{"text":"' + b"x" * (200 * 1024) + b'"}')
@@ -60,7 +60,7 @@ def test_rejects_oversized_body(tmp_path):
 
 def test_rejects_unknown_fields(tmp_path):
     seen = []
-    service = EngineService(replace(Config(), runtime_dir=tmp_path / "run"), seen.append)
+    service = EngineService(replace(Config(), runtime_dir=tmp_path / "run"), lambda text, cwd: seen.append((text, cwd)))
     path = service.start()
     try:
         assert b"error" in _send(path, json.dumps({"text": "hi", "model": "evil"}).encode())
@@ -90,7 +90,7 @@ def test_survives_clients_that_close_without_reading(tmp_path):
     config = replace(
         Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=0.0
     )
-    service = EngineService(config, on_announce=seen.append)
+    service = EngineService(config, on_announce=lambda text, cwd: seen.append(text))
     path = service.start()
     try:
         _send_without_reading(path, "first")
@@ -110,7 +110,7 @@ def test_peer_check_uses_so_peercred_on_linux(tmp_path):
 
     seen = []
     config = replace(Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=0.0)
-    service = EngineService(config, on_announce=seen.append)
+    service = EngineService(config, on_announce=lambda text, cwd: seen.append(text))
     path = service.start()
     try:
         reply = _send(path, json.dumps({"text": "accepted"}).encode())
@@ -148,7 +148,7 @@ def test_on_drop_callback_invoked_on_rate_limited_request(tmp_path):
         drop_count[0] += 1
 
     config = replace(Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=1.0)
-    service = EngineService(config, on_announce=lambda text: None, on_drop=on_drop)
+    service = EngineService(config, on_announce=lambda text, cwd: None, on_drop=on_drop)
     path = service.start()
     try:
         # Send two announcements rapidly.
@@ -169,7 +169,7 @@ def test_on_drop_exception_does_not_prevent_reply(tmp_path):
 
     config = replace(Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=1.0)
     seen = []
-    service = EngineService(config, on_announce=seen.append, on_drop=on_drop_raises)
+    service = EngineService(config, on_announce=lambda text, cwd: seen.append(text), on_drop=on_drop_raises)
     path = service.start()
     try:
         # Send first request.
@@ -180,5 +180,33 @@ def test_on_drop_exception_does_not_prevent_reply(tmp_path):
         assert b"dropped" in reply2 or b"error" in reply2, "client should get a response even if on_drop raised"
         time.sleep(0.1)
         assert seen == ["first"], "first announcement should be seen, second dropped"
+    finally:
+        service.stop()
+
+
+def test_message_with_text_and_cwd_reaches_on_announce_with_both_values(tmp_path):
+    """GATE 2b: message with text and cwd are both passed to on_announce."""
+    seen = []
+    config = replace(Config(), runtime_dir=tmp_path / "run")
+    service = EngineService(config, on_announce=lambda text, cwd: seen.append((text, cwd)))
+    path = service.start()
+    try:
+        reply = _send(path, json.dumps({"text": "test message", "cwd": "/home/user/project"}).encode())
+        assert b"ok" in reply
+        assert seen == [("test message", "/home/user/project")]
+    finally:
+        service.stop()
+
+
+def test_bad_cwd_type_is_rejected(tmp_path):
+    """GATE 2b: if cwd is not a string, the request is rejected."""
+    seen = []
+    service = EngineService(replace(Config(), runtime_dir=tmp_path / "run"), lambda text, cwd: seen.append((text, cwd)))
+    path = service.start()
+    try:
+        reply = _send(path, json.dumps({"text": "hi", "cwd": 123}).encode())
+        assert b"error" in reply
+        assert b"bad cwd" in reply
+        assert seen == []
     finally:
         service.stop()

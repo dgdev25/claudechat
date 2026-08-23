@@ -36,6 +36,10 @@ def main() -> int:
         except OSError:
             pass
 
+    # GATE 1: per-tab mute — exit if CLAUDECHAT_MUTE is set
+    if os.environ.get("CLAUDECHAT_MUTE"):
+        return 0
+
     try:
         payload = json.load(sys.stdin)
         text = str(payload.get("last_assistant_message") or "")[:_MAX_TEXT_CHARS]
@@ -44,11 +48,14 @@ def main() -> int:
     if not text.strip():
         return 0
 
+    # GATE 2a: extract cwd from payload
+    cwd = str(payload.get("cwd") or "")[:4096]
+
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.settimeout(_TIMEOUT_SECONDS)
             client.connect(str(runtime / "engine.sock"))
-            client.sendall(json.dumps({"text": text}).encode())
+            client.sendall(json.dumps({"text": text, "cwd": cwd}).encode())
             client.shutdown(socket.SHUT_WR)
     except (OSError, socket.timeout):
         pass

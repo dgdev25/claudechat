@@ -69,3 +69,51 @@ def test_speaks_done_when_stripping_leaves_nothing():
     spoken = []
     Announcer(replace(Config(), spoken_summaries=True), FakeRunner(), spoken.append).announce("```\ncode\n```")
     assert spoken == ["Done."], f"did not speak Done. for stripped-empty text: {spoken}"
+
+
+def test_focus_cwd_set_matching_cwd_speaks():
+    """GATE 2d: when focus_cwd is set and cwd matches, speak."""
+    spoken = []
+    announcer = Announcer(
+        replace(Config(), spoken_summaries=True, focus_cwd="/home/user/project"),
+        FakeRunner(),
+        spoken.append
+    )
+    announcer.announce("Test message.", cwd="/home/user/project")
+    assert spoken == ["Test message."]
+
+
+def test_focus_cwd_set_different_cwd_is_silent():
+    """GATE 2d: when focus_cwd is set and cwd differs, stay silent."""
+    spoken = []
+    announcer = Announcer(
+        replace(Config(), spoken_summaries=True, focus_cwd="/home/user/project"),
+        FakeRunner(),
+        spoken.append
+    )
+    announcer.announce("Test message.", cwd="/home/user/other")
+    assert spoken == []
+
+
+def test_focus_cwd_set_empty_cwd_speaks_fail_open():
+    """GATE 2d: when focus_cwd is set but cwd is empty, speak (fail open)."""
+    spoken = []
+    announcer = Announcer(
+        replace(Config(), spoken_summaries=True, focus_cwd="/home/user/project"),
+        FakeRunner(),
+        spoken.append
+    )
+    announcer.announce("Test message.", cwd="")
+    assert spoken == ["Test message."]
+
+
+def test_focus_cwd_set_subdirectory_speaks():
+    """GATE 2d: when focus_cwd is set, a subdirectory of focus also speaks."""
+    spoken = []
+    announcer = Announcer(
+        replace(Config(), spoken_summaries=True, focus_cwd="/home/user/project"),
+        FakeRunner(),
+        spoken.append
+    )
+    announcer.announce("Test message.", cwd="/home/user/project/subdir")
+    assert spoken == ["Test message."]

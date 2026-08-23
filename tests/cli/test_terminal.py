@@ -378,7 +378,7 @@ def test_engine_announce_then_listen_calls_announcer():
                             # Re-create with mocked announcer
                             engine.announcer = mock_instance
                             engine._announce_then_listen("test text")
-                            mock_instance.announce.assert_called_once_with("test text")
+                            mock_instance.announce.assert_called_once_with("test text", "")
 
 
 def test_engine_announce_then_listen_skips_listening_when_voice_replies_off():

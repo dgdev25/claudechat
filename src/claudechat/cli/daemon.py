@@ -8,6 +8,7 @@ switching takes effect on the very next reply with no restart.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
@@ -22,8 +23,15 @@ from pathlib import Path
 from claudechat.config import DEFAULT_CONFIG_PATH, Config, load_config
 
 
-def _set_spoken_summaries(enabled: bool, path: Path | None = None) -> Path:
-    """Write `spoken_summaries` into the config file, preserving everything else."""
+def _set_hook_key(key: str, value: str, path: Path | None = None) -> Path:
+    """Write a key into the [hook] section, preserving everything else.
+
+    Args:
+        key: The TOML key to set (e.g., "spoken_summaries", "focus_cwd")
+        value: The TOML value as a string. For bool, use "true" or "false".
+               For string, pass the quoted value (caller must quote).
+        path: Config file path; defaults to DEFAULT_CONFIG_PATH
+    """
     path = path or DEFAULT_CONFIG_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -32,7 +40,6 @@ def _set_spoken_summaries(enabled: bool, path: Path | None = None) -> Path:
     else:
         lines = ["[hook]"]
 
-    value = "true" if enabled else "false"
     in_hook = False
     replaced = False
     out: list[str] = []
@@ -40,11 +47,11 @@ def _set_spoken_summaries(enabled: bool, path: Path | None = None) -> Path:
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             if in_hook and not replaced:
-                out.append(f"spoken_summaries = {value}")
+                out.append(f"{key} = {value}")
                 replaced = True
             in_hook = stripped == "[hook]"
-        elif in_hook and stripped.startswith("spoken_summaries"):
-            out.append(f"spoken_summaries = {value}")
+        elif in_hook and stripped.startswith(key):
+            out.append(f"{key} = {value}")
             replaced = True
             continue
         out.append(line)
@@ -52,10 +59,16 @@ def _set_spoken_summaries(enabled: bool, path: Path | None = None) -> Path:
     if not replaced:
         if "[hook]" not in [line.strip() for line in out]:
             out.append("[hook]")
-        out.append(f"spoken_summaries = {value}")
+        out.append(f"{key} = {value}")
 
     path.write_text("\n".join(out) + "\n")
     return path
+
+
+def _set_spoken_summaries(enabled: bool, path: Path | None = None) -> Path:
+    """Write `spoken_summaries` into the config file, preserving everything else."""
+    value = "true" if enabled else "false"
+    return _set_hook_key("spoken_summaries", value, path)
 
 
 def _is_enabled(path: Path | None = None) -> bool:
@@ -171,6 +184,8 @@ def command_toggle(argument: str) -> int:
         print(f"speech: {speaking}    daemon: {running}    voice: {config.tts_voice}")
         autostart = "on" if _autostart_installed() else "off"
         print(f"autostart: {autostart}")
+        if config.focus_cwd:
+            print(f"focus: {config.focus_cwd}")
         if not _daemon_running(config):
             print(_how_to_start())
         return 0
@@ -204,6 +219,20 @@ def command_toggle(argument: str) -> int:
 
     stopped = stop_daemon()
     print("speech off" + (" — engine stopped" if stopped else ""))
+    return 0
+
+
+def command_focus(argument: str | None = None, path: Path | None = None) -> int:
+    """Set focus to current directory, or clear it with 'off'."""
+    if argument == "off":
+        _set_hook_key("focus_cwd", '""', path)
+        print("focus off — all sessions are spoken")
+        return 0
+
+    cwd = os.getcwd()
+    focus_value = json.dumps(cwd)  # Properly quote the path for TOML
+    _set_hook_key("focus_cwd", focus_value, path)
+    print(f"focus: {cwd} (only this project is spoken)")
     return 0
 
 
@@ -272,6 +301,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if command in {"on", "off", "toggle", "status"}:
         return command_toggle(command)
+    if command == "focus":
+        argument = argv[1] if len(argv) > 1 else None
+        return command_focus(argument)
     if command in {"install", "autostart"}:
         from claudechat.cli.install import command_install
 
@@ -284,11 +316,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(
-        "usage: claudechat [serve|on|off|toggle|status|install|autostart]\n"
+        "usage: claudechat [serve|on|off|toggle|status|focus|install|autostart]\n"
         "  (no argument)  interactive voice session\n"
         "  serve          run the daemon in the foreground\n"
         "  on|off|toggle  speak Claude Code replies, or stop speaking them\n"
         "  status         show whether speech and the daemon are on\n"
+        "  focus          set to speak only this project directory\n"
+        "  focus off      speak all sessions (clear focus)\n"
         "  daemon-start   start the engine without changing the speech setting\n"
         "  daemon-stop    stop the engine\n"
         "  install        register the Stop hook only (no autostart)\n"

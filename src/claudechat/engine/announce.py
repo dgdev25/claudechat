@@ -41,9 +41,14 @@ class Announcer:
     def _config(self) -> Config:
         source = self._config_source
         return source() if callable(source) else source
-    def announce(self, text: str) -> None:
+    def announce(self, text: str, cwd: str = "") -> None:
         if not self._config.spoken_summaries:
             _log.info("SILENT: speech is off (claudechat on to enable)")
+            return
+        # Focus: check if this announcement is for the focused directory
+        focus = self._config.focus_cwd
+        if focus and cwd and not (cwd == focus or cwd.startswith(focus.rstrip("/") + "/")):
+            _log.info("SILENT: out of focus (cwd=%s, focus=%s)", cwd, focus)
             return
         stripper = SpeechStripper()
         clean = redact_sensitive(strip_control_characters((stripper.feed(text + "\n") + " " + stripper.flush()).strip()))

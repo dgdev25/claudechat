@@ -23,6 +23,7 @@ spoken_summaries = false   # off by default; set true to hear Claude Code replie
 summary_threshold_chars = 400
 voice_replies = false      # off by default; set true to listen for voice replies after summaries
 voice_reply_window_seconds = 6.0  # window to listen for voice reply (2.0-30.0)
+focus_cwd = ""             # empty means all sessions speak; use claudechat focus to set it
 
 [limits]
 max_recording_seconds = 60.0

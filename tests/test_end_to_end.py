@@ -26,7 +26,7 @@ def test_announcement_reaches_speech(tmp_path):
     try:
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(str(engine.service.socket_path))
-        client.sendall(json.dumps({"text": "The build finished."}).encode())
+        client.sendall(json.dumps({"text": "The build finished.", "cwd": ""}).encode())
         client.shutdown(socket.SHUT_WR)
         client.recv(1024)
         client.close()

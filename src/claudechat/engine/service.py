@@ -15,7 +15,7 @@ from claudechat.config import Config
 _log = logging.getLogger("claudechat.engine")
 
 _MAX_BODY_BYTES = 64 * 1024
-_ALLOWED_FIELDS = {"text"}
+_ALLOWED_FIELDS = {"text", "cwd"}
 
 
 def peer_uid_via_libc(connection: socket.socket) -> int | None:
@@ -71,7 +71,7 @@ class RateLimiter:
 class EngineService:
     """Unix socket exposing only the announcement operation."""
 
-    def __init__(self, config: Config, on_announce: Callable[[str], None], on_drop: Callable[[], None] | None = None) -> None:
+    def __init__(self, config: Config, on_announce: Callable[[str, str], None], on_drop: Callable[[], None] | None = None) -> None:
         self._config, self._on_announce, self._on_drop = config, on_announce, on_drop
         self._limiter = RateLimiter(config.hook_min_interval_seconds)
         self._server: socket.socket | None = None
@@ -159,6 +159,10 @@ class EngineService:
         if not isinstance(text, str) or not text.strip():
             self._reply(connection, b'{"status":"error","reason":"no text"}')
             return
+        cwd = payload.get("cwd", "")
+        if not isinstance(cwd, str):
+            self._reply(connection, b'{"status":"error","reason":"bad cwd"}')
+            return
         if not self._limiter.allow(time.monotonic()):
             if self._on_drop is not None:
                 try:
@@ -170,7 +174,7 @@ class EngineService:
             self._reply(connection, b'{"status":"dropped","reason":"rate limited"}')
             return
         _log.info("ACCEPTED %d chars: %.60s", len(text), text.replace("\n", " "))
-        self._on_announce(text)
+        self._on_announce(text, cwd)
         self._reply(connection, b'{"status":"ok"}')
 
     @staticmethod

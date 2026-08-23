@@ -420,9 +420,9 @@ class Engine:
             if self._playback is not None:
                 self._playback.play(pcm)
 
-    def _announce_then_listen(self, text: str) -> None:
+    def _announce_then_listen(self, text: str, cwd: str = "") -> None:
         """Announce text, then listen for voice reply if enabled."""
-        self.announcer.announce(text)
+        self.announcer.announce(text, cwd)
 
         # Re-read config to check if voice_replies is currently on
         cfg = self._config_provider() if self._config_provider and callable(self._config_provider) else self.config

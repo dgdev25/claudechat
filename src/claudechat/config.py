@@ -37,6 +37,7 @@ class Config:
     vad_threshold: float = 0.5
     voice_replies: bool = False
     voice_reply_window_seconds: float = 6.0
+    focus_cwd: str = ""
     models_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "claudechat" / "models")
     runtime_dir: Path = field(default_factory=_runtime_dir)
 
@@ -79,12 +80,14 @@ def load_config(path: Path | None = None) -> Config:
         vad_threshold=float(speech.get("vad_threshold", Config.vad_threshold)),
         voice_replies=bool(hook.get("voice_replies", Config.voice_replies)),
         voice_reply_window_seconds=float(hook.get("voice_reply_window_seconds", Config.voice_reply_window_seconds)),
+        focus_cwd=str(hook.get("focus_cwd", Config.focus_cwd)),
     )
 
     _check_clean("tts_voice", cfg.tts_voice)
     _check_clean("stt_model", cfg.stt_model)
     _check_clean("claude_model", cfg.claude_model)
     _check_clean("summary_model", cfg.summary_model)
+    _check_clean("focus_cwd", cfg.focus_cwd)
     if not 0.5 <= cfg.tts_speed <= 2.0:
         raise ValueError("tts_speed must be between 0.5 and 2.0")
     if not 1.0 <= cfg.max_recording_seconds <= 300.0:

@@ -43,3 +43,59 @@ def test_comments_survive_a_toggle(tmp_path):
     path.write_text('# my settings\n[hook]\nspoken_summaries = false\n')
     _set_spoken_summaries(True, path)
     assert "# my settings" in path.read_text()
+
+
+def test_focus_writes_the_key(tmp_path):
+    """GATE 2f: focus command writes focus_cwd with the current directory."""
+    from claudechat.cli.daemon import command_focus
+    import os
+
+    path = tmp_path / "config.toml"
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        command_focus(path=path)
+        data = tomllib.loads(path.read_text())
+        assert data["hook"]["focus_cwd"] == str(tmp_path)
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_focus_off_clears_the_key(tmp_path):
+    """GATE 2f: focus off command clears focus_cwd."""
+    from claudechat.cli.daemon import command_focus
+    import os
+
+    path = tmp_path / "config.toml"
+    path.write_text('[hook]\nfocus_cwd = "/some/path"\n')
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        command_focus("off", path=path)
+        data = tomllib.loads(path.read_text())
+        assert data["hook"]["focus_cwd"] == ""
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_focus_preserves_other_keys(tmp_path):
+    """GATE 2f: focus command preserves other settings in the config."""
+    from claudechat.cli.daemon import command_focus
+    import os
+
+    path = tmp_path / "config.toml"
+    path.write_text(
+        '[speech]\ntts_voice = "bm_fable"\n'
+        '[hook]\nspoken_summaries = true\nsummary_threshold_chars = 500\n'
+    )
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        command_focus(path=path)
+        data = tomllib.loads(path.read_text())
+        assert data["speech"]["tts_voice"] == "bm_fable"
+        assert data["hook"]["spoken_summaries"] is True
+        assert data["hook"]["summary_threshold_chars"] == 500
+        assert data["hook"]["focus_cwd"] == str(tmp_path)
+    finally:
+        os.chdir(original_cwd)
