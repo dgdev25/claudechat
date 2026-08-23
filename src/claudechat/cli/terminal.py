@@ -204,6 +204,11 @@ class VoiceSession:
                 break
             if generation != self.conversation.generation:
                 continue
+            # The worker compares against this to drop stale chunks. It must
+            # come from the yielded chunk: ask() increments the generation
+            # AFTER _respond starts, so a value sampled before the loop is
+            # always one behind and mutes the whole reply.
+            self._current_generation = generation
             if not spoken_any:
                 print(f"\r\x1b[2Kclaude: {chunk}", end="", flush=True)
                 spoken_any = True

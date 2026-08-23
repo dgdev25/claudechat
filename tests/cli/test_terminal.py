@@ -399,3 +399,39 @@ def test_engine_announce_then_listen_skips_listening_when_voice_replies_off():
                             if engine._reply_listener:
                                 # This won't happen since voice_replies is False
                                 pass
+
+
+def test_reply_chunks_reach_playback_with_the_real_conversation():
+    """Regression: the synthesis worker must accept chunks from the REAL
+    Conversation class. Its ask() increments the generation after _respond
+    starts, so a generation sampled before the loop mutes every reply — the
+    scripted fakes never increment and cannot catch that.
+    """
+    import time as _time
+
+    from claudechat.claude.conversation import Conversation
+    from claudechat.claude.runner import Event
+    from claudechat.text.chunk import SentenceChunker
+    from claudechat.text.strip import SpeechStripper
+
+    class ScriptedRunner:
+        def stream(self, prompt, session_id=None):
+            yield Event("text", "One. Two. Three.\n", None)
+            yield Event("result", "", "s1")
+
+        def cancel(self):
+            pass
+
+    conversation = Conversation(ScriptedRunner(), SpeechStripper, SentenceChunker)
+    playback = FakePlayback()
+    playback.wait = lambda timeout=None: None
+    session = VoiceSession(
+        Config(), FakeCapture(), FakeTranscriber(), FakeSynth(),
+        playback, conversation, wait_for_stop=lambda: "", enable_barge_in=False,
+    )
+    session._respond("hello")
+    deadline = _time.monotonic() + 2.0
+    while len(playback.played) < 4 and _time.monotonic() < deadline:
+        _time.sleep(0.02)
+    # Earcon plus three spoken sentences.
+    assert len(playback.played) >= 4, f"reply was muted: {len(playback.played)} plays"
