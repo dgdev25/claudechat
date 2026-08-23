@@ -18,6 +18,7 @@ class Capture:
         self._max_seconds = config.max_recording_seconds
         self._process: subprocess.Popen[bytes] | None = None
         self._chunks: list[bytes] = []
+        self._taken: list[bytes] = []
         self._reader: threading.Thread | None = None
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
@@ -28,6 +29,7 @@ class Capture:
             if self._process is not None:
                 return
             self._chunks = []
+            self._taken = []
             self._process = subprocess.Popen(
                 self._argv,
                 stdout=subprocess.PIPE,
@@ -43,7 +45,8 @@ class Capture:
                     block = process.stdout.read(4096) if process.stdout else b""
                     if not block:
                         break
-                    self._chunks.append(block)
+                    with self._lock:
+                        self._chunks.append(block)
             except (ValueError, OSError):
                 pass
 
@@ -57,12 +60,24 @@ class Capture:
         with self._lock:
             return self._process is not None and self._process.poll() is None
 
+    def take(self) -> bytes:
+        """Atomically return accumulated audio blocks and clear them.
+
+        Returns the concatenated audio since start() or the last take() call.
+        """
+        with self._lock:
+            result = b"".join(self._chunks)
+            self._taken.extend(self._chunks)
+            self._chunks = []
+        return result
+
     def stop(self) -> bytes:
         self._halt()
         if self._reader is not None:
             self._reader.join(timeout=1.0)
             self._reader = None
-        return b"".join(self._chunks)
+        with self._lock:
+            return b"".join(self._taken + self._chunks)
 
     def _halt(self) -> None:
         if self._timer is not None:
