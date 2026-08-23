@@ -192,8 +192,10 @@ class VoiceSession:
         spoken_any = False
         self._interrupted.clear()
 
-        # Set up barge-in listener if enabled and not in hands-free mode
-        if self._enable_barge_in and not self.config.hands_free:
+        # Enter interrupts the reply in both modes. Voice-interrupt during
+        # playback stays out until echo handling exists — in hands-free mode
+        # the microphone would hear the speakers and barge in on itself.
+        if self._enable_barge_in:
             listener_thread = threading.Thread(
                 target=self._barge_in_listener, daemon=True
             )
