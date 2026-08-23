@@ -74,6 +74,18 @@ process, so barge-in is followed by one cold start. Draining the abandoned turn
 instead, to keep the process, was measured at 29 s before the next turn could
 begin — far worse than the saving.
 
+### Audit remediation landed (2026-08-23, later the same day) — RE-MEASUREMENT PENDING
+
+All 18 findings from `docs/audit-2026-08-23-latency-and-conversation.md` are implemented
+(one sub-step deferred: voice barge-in during playback, which needs echo handling). The
+two levers named below as "neither yet applied" are now both applied, plus: pre-warmed
+processes on both runners, sentence-streamed summaries on a faster model, gapless queued
+playback, a synthesis worker, hands-free VAD turn-taking, Enter barge-in with
+conversation resume, and clipboard voice replies. The measured figures below are
+therefore stale in the app's favour, but the 4.84 s stands as the figure of record until
+`scripts/benchmark.py` (which now measures cold and warm turns) is re-run on real
+hardware. Test count at landing: 187.
+
 ### Measured result at end of phase 1 (2026-08-23) — TWO TARGETS MISSED
 
 Median of three runs on an otherwise idle machine, measured the way the app actually

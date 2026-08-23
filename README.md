@@ -16,10 +16,12 @@ goes to Claude, over the login you already have.
 There is also no API key. claudechat talks to Claude through the Claude Code command-line
 tool you are already signed into, so it runs on the subscription you already pay for.
 
-> **Status: early, but genuinely usable.** The engine works end to end and has 101 tests.
-> Two things are honestly rough — it takes about 4.8 seconds to start speaking (I was
-> aiming for 3.5), and macOS support is written but has never been run on a Mac. Both are
-> covered plainly in [Where it's rough](#where-its-rough).
+> **Status: early, but genuinely usable.** The engine works end to end and has 187 tests.
+> The latency fixes that were pending are now applied — both Claude processes start
+> pre-warmed, summaries stream sentence-by-sentence, and playback is gapless — but the
+> new end-to-end number has not been re-measured yet, so the honest figure on record is
+> still the old 4.8 seconds. macOS support is written but has never been run on a Mac.
+> Both are covered plainly in [Where it's rough](#where-its-rough).
 
 ---
 
@@ -97,11 +99,16 @@ the rest.** That hides most of the waiting.
 
 **Talk to it directly.** Run `uv run claudechat`, press Enter to start recording, speak,
 press Enter again. It shows you what it heard — so a mis-transcription is obvious rather
-than mysterious — then answers out loud.
+than mysterious — then answers out loud. Press Enter while it is speaking to interrupt
+it and ask something else; the conversation carries on from where it was. Set
+`hands_free = true` under `[speech]` in the config and the keys go away entirely: it
+records when you speak and stops when you fall silent, like a phone call.
 
 **Or let it narrate Claude Code.** This is the one most people will want. Once the hook is
 installed, every reply in a normal Claude Code session gets spoken as a short summary:
-the facts, no code, no detail. You keep working and listen.
+the facts, no code, no detail. You keep working and listen. With `voice_replies = true`
+under `[hook]`, it listens for a few seconds after each summary — answer out loud and
+your words land on the clipboard, ready to paste into Claude Code.
 
 These two compose nicely with Claude Code's own `/voice` feature. `/voice` handles input
 (hold space, talk, it types for you) and claudechat handles output. **Keep `/voice`
@@ -156,18 +163,22 @@ starts.
 
 Being straight with you about the parts that aren't finished:
 
-- **It's slower than I wanted.** About 4.8 seconds from you finishing a sentence to hearing
-  the first word, against a 3.5-second target. Claude itself is roughly three-quarters of
-  that and no local change touches it. Two known fixes exist and aren't applied yet:
-  reusing one long-lived Claude process (worth a measured 0.89 s per turn) and releasing
-  the first spoken chunk sooner.
+- **The new speed hasn't been measured yet.** The last honest end-to-end number is
+  4.8 seconds against a 3.5-second target. Since then the known fixes have landed —
+  both Claude processes start pre-warmed, summaries stream sentence-by-sentence on a
+  faster model, and the first chunk plays through a gapless queue — but until
+  `scripts/benchmark.py` is re-run on real hardware, 4.8 s stands as the figure of
+  record rather than being revised on hope.
 - **macOS is written but unverified.** Every dependency has Mac builds and the
   platform-specific pieces — audio, autostart, the socket permission check — all have Mac
   implementations with tests. But nobody has run it on a Mac yet, so treat it as untested.
   Linux is verified.
-- **Hold-to-talk isn't wired up in the terminal client yet.** It's press-Enter-to-start,
-  press-Enter-to-stop. Holding a key genuinely works on this hardware (measured), the
-  detector is written and fixed — it just isn't connected to the client.
+- **The new conversation features are tested with fakes, not a microphone.** Hands-free
+  mode (`hands_free = true` — speak to record, silence ends the turn), Enter-to-interrupt
+  while Claude is speaking, the thinking tone, and clipboard voice replies
+  (`voice_replies = true`) all pass their tests, but nobody has held a real conversation
+  through them yet. Interrupting by voice mid-reply is deliberately not built: the
+  microphone hears the speakers, and that needs echo handling first.
 - **One dependency is GPL-licensed.** The speech synthesiser pulls in `phonemizer`, which
   is GPL-3.0. Fine for personal use, since that licence applies when you distribute
   software rather than when you run it — but it would need replacing before publishing
