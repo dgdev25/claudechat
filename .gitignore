@@ -14,3 +14,4 @@ models/
 ruvector.db
 :memory:*
 assets/preview.html
+logs/
