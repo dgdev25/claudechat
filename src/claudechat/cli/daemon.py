@@ -8,9 +8,14 @@ switching takes effect on the very next reply with no restart.
 
 from __future__ import annotations
 
+import os
+import shutil
 import signal
+import socket
+import subprocess
 import sys
 import threading
+import time
 import tomllib
 from pathlib import Path
 
@@ -75,6 +80,68 @@ def _how_to_start() -> str:
     return "start it with:  ./start.sh        (this session only)"
 
 
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def start_daemon(timeout_seconds: float = 120.0) -> bool:
+    """Launch the daemon in the background and wait until it accepts a connection.
+
+    setsid --fork is load-bearing: plain setsid does not fork when it is already
+    a process-group leader, and the daemon would stay a child of this short-lived
+    command, dying with it.
+    """
+    config = load_config()
+    if _daemon_running(config):
+        return True
+
+    root = _project_root()
+    log_dir = root / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log = (log_dir / "daemon.log").open("a")
+    uv = shutil.which("uv")
+    argv = (
+        ["setsid", "--fork", uv, "run", "--project", str(root), "claudechat", "serve"]
+        if uv
+        else ["setsid", "--fork", sys.executable, "-m", "claudechat.cli.daemon", "serve"]
+    )
+    with open(os.devnull) as devnull:
+        subprocess.Popen(argv, cwd=root, stdin=devnull, stdout=log, stderr=log)
+
+    deadline = time.monotonic() + timeout_seconds
+    socket_path = config.runtime_dir / "engine.sock"
+    while time.monotonic() < deadline:
+        if socket_path.is_socket():
+            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            probe.settimeout(1.0)
+            try:
+                probe.connect(str(socket_path))
+                return True
+            except OSError:
+                pass
+            finally:
+                probe.close()
+        time.sleep(0.5)
+    return False
+
+
+def stop_daemon() -> bool:
+    """Stop a running daemon. Returns True if one was stopped."""
+    config = load_config()
+    if not _daemon_running(config):
+        return False
+    result = subprocess.run(
+        ["pkill", "-f", "claudechat.cli.daemon serve|claudechat serve"],
+        capture_output=True,
+    )
+    for _ in range(20):
+        if not _daemon_running(config):
+            break
+        time.sleep(0.2)
+    (config.runtime_dir / "engine.sock").unlink(missing_ok=True)
+    return result.returncode in (0, 1)
+
+
 def command_toggle(argument: str) -> int:
     """on / off / toggle / status."""
     if argument == "status":
@@ -94,10 +161,29 @@ def command_toggle(argument: str) -> int:
         enabled = argument == "on"
 
     _set_spoken_summaries(enabled)
-    config = load_config()
-    print(f"speech {'on' if enabled else 'off'}")
-    if enabled and not _daemon_running(config):
-        print(f"daemon is not running — {_how_to_start()}")
+
+    # The toggle is the whole interaction: turning speech on starts the engine
+    # if it is not already up, and turning it off shuts it down again, so a
+    # user never has to run a separate launcher. When autostart is installed the
+    # daemon is managed by systemd and is left alone.
+    if _autostart_installed():
+        print(f"speech {'on' if enabled else 'off'}")
+        return 0
+
+    if enabled:
+        if _daemon_running(load_config()):
+            print("speech on")
+            return 0
+        print("speech on — starting the engine...", flush=True)
+        print("  (first ever run downloads speech models, a few minutes)", flush=True)
+        if start_daemon():
+            print("ready")
+            return 0
+        print("engine failed to start — see logs/daemon.log", file=sys.stderr)
+        return 1
+
+    stopped = stop_daemon()
+    print("speech off" + (" — engine stopped" if stopped else ""))
     return 0
 
 
@@ -106,8 +192,12 @@ def command_serve() -> int:
     from claudechat.cli.terminal import Engine
 
     engine = Engine(load_config(), config_provider=load_config)
-    engine.start()
+    # Load the models BEFORE binding the socket. The socket appearing is what
+    # everything else treats as "ready"; binding first would advertise a daemon
+    # that cannot speak yet, and `claudechat on` would report ready in half a
+    # second while the first reply still waited 30s for Kokoro.
     engine.preload()
+    engine.start()
 
     stopping = threading.Event()
 
