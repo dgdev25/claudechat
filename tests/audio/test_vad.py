@@ -251,3 +251,84 @@ def test_real_model_processes_audio():
     # Result depends on model training, but should be one of the valid states
     state = gate.feed(pcm)
     assert state in ("waiting", "speech", "end")
+
+
+def test_peak_probability_tracks_maximum():
+    """peak_probability tracks the maximum probability seen across feeds."""
+    gate = SpeechGate(
+        sample_rate=16000,
+        probability_fn=lambda w: 0.3,
+    )
+    assert gate.peak_probability == 0.0
+
+    # Feed first chunk
+    gate.feed(pcm_speech(1024))
+    assert gate.peak_probability == 0.3
+
+    # Feed second chunk (same probability)
+    gate.feed(pcm_speech(1024))
+    assert gate.peak_probability == 0.3
+
+    # Create a gate with variable probability
+    def prob_fn_variable(window: np.ndarray) -> float:
+        max_val = np.max(np.abs(window))
+        return float(max_val)
+
+    gate2 = SpeechGate(
+        sample_rate=16000,
+        probability_fn=prob_fn_variable,
+    )
+    # Feed low-amplitude audio
+    gate2.feed(b"\x01\x00" * 512)
+    first_peak = gate2.peak_probability
+    # Feed high-amplitude audio
+    high_amp = np.array([32000], dtype="<i2").tobytes()
+    gate2.feed(high_amp * 512)
+    assert gate2.peak_probability >= first_peak
+
+
+def test_peak_probability_resets():
+    """peak_probability is zeroed by reset()."""
+    gate = SpeechGate(
+        sample_rate=16000,
+        probability_fn=lambda w: 0.9,
+    )
+    gate.feed(pcm_speech(1024))
+    assert gate.peak_probability == 0.9
+
+    gate.reset()
+    assert gate.peak_probability == 0.0
+
+
+def test_windows_fed_counts_512_sample_windows():
+    """windows_fed counts the number of 512-sample windows processed."""
+    gate = SpeechGate(
+        sample_rate=16000,
+        probability_fn=prob_fn,
+    )
+    assert gate.windows_fed == 0
+
+    # Feed 512 samples (1 window)
+    gate.feed(pcm_speech(512))
+    assert gate.windows_fed == 1
+
+    # Feed 1024 samples (2 windows)
+    gate.feed(pcm_speech(1024))
+    assert gate.windows_fed == 3
+
+    # Feed 512 samples (1 more window)
+    gate.feed(pcm_speech(512))
+    assert gate.windows_fed == 4
+
+
+def test_windows_fed_resets():
+    """windows_fed is zeroed by reset()."""
+    gate = SpeechGate(
+        sample_rate=16000,
+        probability_fn=prob_fn,
+    )
+    gate.feed(pcm_speech(2048))
+    assert gate.windows_fed == 4
+
+    gate.reset()
+    assert gate.windows_fed == 0

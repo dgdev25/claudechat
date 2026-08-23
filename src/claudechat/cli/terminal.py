@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import queue
 import secrets
 import sys
@@ -29,6 +30,8 @@ _STATE_MARKS = {
     "idle": "○", "recording": "●", "transcribing": "◐",
     "thinking": "◇", "speaking": "▶",
 }
+
+_log = logging.getLogger("claudechat.barge")
 
 
 def format_state(state: str) -> str:
@@ -288,8 +291,11 @@ class VoiceSession:
         Uses a stricter SpeechGate to avoid false positives from playback audio.
         """
         capture = None
+        gate = None
+        total_bytes = 0
         try:
             capture = self._barge_capture_factory()
+            capture_target = self.config.barge_capture_target or self.config.capture_target
             capture.start()
 
             # Build the stricter gate: use a higher threshold and longer min_speech
@@ -303,18 +309,41 @@ class VoiceSession:
                     min_speech_ms=self.config.barge_min_speech_ms,
                 )
 
+            _log.info(
+                "barge listener up: target=%r threshold=%.2f min_speech_ms=%d",
+                capture_target,
+                self.config.barge_vad_threshold,
+                self.config.barge_min_speech_ms,
+            )
+
             while self._responding.is_set():
                 pcm = capture.take()
                 if pcm:
+                    total_bytes += len(pcm)
                     state = gate.feed(pcm)
                     if state == "speech":
+                        _log.info(
+                            "barge listener triggered: peak=%.3f windows=%d state=%s",
+                            gate.peak_probability,
+                            gate.windows_fed,
+                            state,
+                        )
                         self._interrupt_response()
                         return
                 time.sleep(0.05)
         except Exception:
-            # Log/ignore: never crash the reply
-            pass
+            _log.exception("barge listener died")
         finally:
+            last_state = gate.state if gate is not None else "unknown"
+            peak_prob = gate.peak_probability if gate is not None else 0.0
+            windows = gate.windows_fed if gate is not None else 0
+            _log.info(
+                "barge listener down: %d bytes, %d windows, peak probability %.3f, state %s",
+                total_bytes,
+                windows,
+                peak_prob,
+                last_state,
+            )
             if capture is not None:
                 capture.stop()
 
@@ -506,6 +535,12 @@ class Engine:
 
 def interactive_main() -> int:
     config = load_config()
+    if config.debug_logging:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(name)s %(message)s",
+            datefmt="%H:%M:%S",
+        )
     engine = Engine(config)
     engine.start()
     engine.preload()

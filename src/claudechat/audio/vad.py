@@ -51,6 +51,8 @@ class SpeechGate:
         self._h = None  # LSTM hidden state
         self._c = None  # LSTM cell state
         self._history = None  # 64-sample context buffer
+        self.peak_probability: float = 0.0
+        self.windows_fed: int = 0
 
     @property
     def state(self) -> str:
@@ -88,6 +90,8 @@ class SpeechGate:
             self._buffer = self._buffer[self._WINDOW_SIZE:]
 
             prob = prob_fn(window)
+            self.peak_probability = max(self.peak_probability, prob)
+            self.windows_fed += 1
 
             # Update state based on probability and threshold
             if prob >= self.threshold:
@@ -118,6 +122,8 @@ class SpeechGate:
         self._cumulative_speech_samples = 0
         self._trailing_silence_samples = 0
         self._buffer = np.array([], dtype=np.float32)
+        self.peak_probability = 0.0
+        self.windows_fed = 0
 
     def _get_silero_probability_fn(self) -> Callable[[np.ndarray], float]:
         """Load Silero VAD model and return probability function.

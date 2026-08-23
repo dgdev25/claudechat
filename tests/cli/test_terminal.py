@@ -1,4 +1,5 @@
 import io
+import logging
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -414,9 +415,12 @@ def test_voice_barge_in_listener_uses_config_values():
         def __init__(self, **kwargs):
             gate_kwargs_list.append(kwargs)
             self.state = "waiting"
+            self.peak_probability = 0.8
+            self.windows_fed = 0
 
         def feed(self, pcm):
             # Return speech to trigger interrupt after first feed
+            self.windows_fed += 1
             return "speech"
 
     class FakeCaptureWithTake:
@@ -527,9 +531,15 @@ def test_voice_barge_in_interrupts_on_speech():
     class MockBargeGate:
         def __init__(self):
             self.feed_count = 0
+            self.state = "waiting"
+            self.peak_probability = 0.85
+            self.windows_fed = 0
+
         def feed(self, pcm):
             self.feed_count += 1
+            self.windows_fed += 1
             if self.feed_count >= 2:
+                self.state = "speech"
                 return "speech"
             return "waiting"
 
@@ -635,3 +645,83 @@ def test_barge_capture_factory_falls_back_to_capture_target(monkeypatch):
     barge_capture = session._barge_capture_factory()
     assert len(captured_configs) > 0
     assert captured_configs[-1].capture_target == "fallback_source"
+
+
+def test_voice_barge_in_listener_logs_diagnostics(caplog):
+    """Test that _voice_barge_in_listener logs start, trigger, and end events."""
+    config = Config(
+        voice_barge_in=True,
+        barge_vad_threshold=0.75,
+        barge_min_speech_ms=600,
+        barge_capture_target="test_source",
+    )
+
+    class MockBargeCapture:
+        sample_rate = 16000
+
+        def __init__(self):
+            self.started = False
+            self.call_count = 0
+
+        def start(self):
+            self.started = True
+
+        def take(self):
+            self.call_count += 1
+            if self.call_count <= 2:
+                # Return silence first
+                return b"\x00\x00" * 100
+            # Then return audio (non-empty)
+            return b"\x01\x02" * 100
+
+        def stop(self):
+            return b""
+
+    class MockBargeGate:
+        def __init__(self):
+            self.feed_count = 0
+            self.peak_probability = 0.9
+            self.windows_fed = 0
+            self.state = "waiting"
+
+        def feed(self, pcm):
+            self.feed_count += 1
+            self.windows_fed += 1
+            if self.feed_count >= 2:
+                self.state = "speech"
+                return "speech"
+            self.state = "waiting"
+            return "waiting"
+
+    def barge_capture_factory():
+        return MockBargeCapture()
+
+    def barge_gate_factory():
+        return MockBargeGate()
+
+    playback = FakePlayback()
+    playback.wait = lambda timeout=None: None
+    conversation = FakeConversation(chunks=["chunk1", "chunk2", "chunk3"])
+
+    session = VoiceSession(
+        config,
+        FakeCapture(),
+        FakeTranscriber(),
+        FakeSynth(),
+        playback,
+        conversation,
+        wait_for_stop=lambda: None,
+        enable_barge_in=True,
+        barge_capture_factory=barge_capture_factory,
+        barge_gate_factory=barge_gate_factory,
+    )
+
+    with caplog.at_level(logging.INFO, logger="claudechat.barge"):
+        session._respond("test")
+        time.sleep(0.2)  # Let barge-in listener run
+
+    # Check that logs contain expected messages
+    log_text = caplog.text
+    assert "barge listener up" in log_text
+    assert "barge_source" in log_text or "test_source" in log_text
+    assert "barge listener triggered" in log_text or "barge listener down" in log_text
