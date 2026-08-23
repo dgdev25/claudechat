@@ -320,6 +320,17 @@ if [[ "${DO_INSTALL}" == true || "${DO_AUTOSTART}" == true ]]; then
   (cd "${PROJECT_ROOT}" && uv run claudechat "${INSTALL_CMD}" 2>&1 | grep -viE "warn") \
     || die "Install failed"
   echo
+
+  # Set up echo cancellation for voice barge-in (Linux only, best-effort)
+  if [[ "${IS_MAC}" == false ]]; then
+    header "5b. Voice barge-in setup (optional)"
+    if (cd "${PROJECT_ROOT}" && uv run claudechat setup-echo-cancel 2>&1 | grep -viE "warn") >/dev/null 2>&1; then
+      ok "Voice barge-in enabled"
+    else
+      info "Voice barge-in setup skipped — enable later with: claudechat setup-echo-cancel"
+    fi
+    echo
+  fi
   if [[ "${DO_AUTOSTART}" == true ]]; then
     ok "Installed. The daemon now starts with your session."
   else

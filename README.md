@@ -16,7 +16,7 @@ goes to Claude, over the login you already have.
 There is also no API key. claudechat talks to Claude through the Claude Code command-line
 tool you are already signed into, so it runs on the subscription you already pay for.
 
-> **Status: early, but genuinely usable.** The engine works end to end and has 187 tests.
+> **Status: early, but genuinely usable.** The engine works end to end and has 211 tests.
 > The latency work landed and was re-measured: a pre-warmed turn reaches first audio in
 > about 3.2 seconds (median of three runs), inside the 3.5-second target that the old
 > 4.8-second build missed. macOS support is written but has never been run on a Mac.
@@ -115,6 +115,41 @@ enabled** — the two don't collide.
 
 ---
 
+## Interrupting, focusing, and staying silent
+
+**Talk over it.** When the engine is speaking, you can talk and it stops to listen. This works
+because of an echo-cancelled microphone — PipeWire subtracts what the speakers are playing
+from what the microphone hears, so the engine does not interrupt itself. One command sets it up:
+
+```bash
+claudechat setup-echo-cancel
+```
+
+The installer runs this automatically on Linux. Enter also always interrupts, even if
+voice barge-in is off. Disable voice barge-in with `voice_barge_in = false` under `[speech]`.
+
+**Focus one project.** Running several Claude Code sessions in different tabs means every one
+of them speaks. Run this in a project directory:
+
+```bash
+claudechat focus
+```
+
+Only that project will speak; `claudechat focus off` restores all. Takes effect on the next
+reply, no restart needed.
+
+**Keep one session silent.** Before starting `claude` in a tab, set:
+
+```bash
+export CLAUDECHAT_MUTE=1
+```
+
+That tab stays silent while others speak.
+
+**Voice replies:** See the `voice_replies` option in [Two ways to use it](#two-ways-to-use-it).
+
+---
+
 ## Under the hood
 
 <p align="center">
@@ -155,6 +190,62 @@ tts_speed = 1.0
 
 No restart needed for the speech toggle; a voice change takes effect next time the engine
 starts.
+
+---
+
+## Every setting
+
+All settings live in `~/.config/claudechat/config.toml`, grouped by section. Most settings
+take effect on the next reply. Settings marked **restart** require the engine to restart.
+
+### speech
+
+| Key | Default | What it does |
+|---|---|---|
+| `stt_model` | `base.en` | Speech recognition model (base.en, small.en). **Restart** to change. |
+| `tts_voice` | `af_heart` | Which voice to use (run `scripts/list_voices.py` to see all 54). **Restart** to change. |
+| `tts_speed` | `1.0` | How fast to speak (0.5 to 2.0). **Restart** to change. |
+| `stt_cpu_threads` | `8` | CPU threads for transcription (1–64). **Restart** to change. |
+| `first_chunk_min_chars` | `10` | Minimum characters before releasing first chunk (1–200). |
+| `first_chunk_max_words` | `30` | Maximum words in first chunk (5–200). |
+| `hands_free` | `false` | Record when you speak, stop when you fall silent (VAD instead of Enter). |
+| `thinking_cue` | `true` | Play tone while Claude thinks. |
+| `vad_silence_ms` | `700` | Silence duration to end recording (200–5000 ms). |
+| `vad_threshold` | `0.5` | Speech detection threshold (0.1–0.95). |
+| `voice_barge_in` | `false` | Interrupt reply if speech is detected while speaking. |
+| `capture_target` | `` | PipeWire source node name (e.g. `claudechat_ec_source`). Empty uses system default. **Restart** to change. |
+| `playback_target` | `` | PipeWire sink node name (e.g. `claudechat_ec_sink`). Empty uses system default. **Restart** to change. |
+
+### claude
+
+| Key | Default | What it does |
+|---|---|---|
+| `claude_model` | `sonnet` | Model for conversation turns (e.g. opus, haiku). |
+| `summary_model` | `haiku` | Model for hook summaries of Claude Code replies. |
+
+### hook
+
+| Key | Default | What it does |
+|---|---|---|
+| `spoken_summaries` | `false` | Speak short summary of Claude Code replies. |
+| `summary_threshold_chars` | `400` | Minimum reply length to speak summary. |
+| `voice_replies` | `false` | Listen for voice reply after summaries (answer out loud, text goes to clipboard). |
+| `voice_reply_window_seconds` | `6.0` | Window to listen for voice reply (2.0–30.0 seconds). |
+| `focus_cwd` | `` | Empty means all sessions speak. Use `claudechat focus` to set it. |
+
+### limits
+
+| Key | Default | What it does |
+|---|---|---|
+| `max_recording_seconds` | `60.0` | Maximum length of one voice recording (1–300 seconds). |
+| `max_speech_seconds` | `120.0` | Maximum length of one Claude reply to speak. |
+| `hook_min_interval_seconds` | `1.0` | Minimum time between hook announcements. |
+
+### top-level
+
+| Key | Default | What it does |
+|---|---|---|
+| `debug_logging` | `false` | Log detailed diagnostic information. **Restart** to change. |
 
 ---
 
@@ -204,7 +295,7 @@ press.
 ## Running the tests
 
 ```bash
-uv run pytest -q          # 101 tests
+uv run pytest -q          # 211 tests (excluding 5 live)
 ```
 
 Tests that download models or spend Claude quota are marked `slow` and `live` so they can

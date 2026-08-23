@@ -99,3 +99,39 @@ def test_focus_preserves_other_keys(tmp_path):
         assert data["hook"]["focus_cwd"] == str(tmp_path)
     finally:
         os.chdir(original_cwd)
+
+
+def test_status_shows_voice_barge_in(tmp_path, monkeypatch, capsys):
+    """Test that status command shows voice_barge_in setting."""
+    from claudechat.cli.daemon import command_toggle
+    from claudechat.config import Config
+
+    # Monkeypatch load_config to return a config with voice_barge_in = True
+    def mock_load_config():
+        return Config(voice_barge_in=True, tts_voice="bm_fable", spoken_summaries=False)
+
+    monkeypatch.setattr("claudechat.cli.daemon.load_config", mock_load_config)
+
+    result = command_toggle("status")
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "voice barge-in: on" in captured.out
+
+
+def test_status_shows_voice_barge_in_off(tmp_path, monkeypatch, capsys):
+    """Test that status command shows voice_barge_in as off when disabled."""
+    from claudechat.cli.daemon import command_toggle
+    from claudechat.config import Config
+
+    # Monkeypatch load_config to return a config with voice_barge_in = False
+    def mock_load_config():
+        return Config(voice_barge_in=False, tts_voice="bm_fable", spoken_summaries=False)
+
+    monkeypatch.setattr("claudechat.cli.daemon.load_config", mock_load_config)
+
+    result = command_toggle("status")
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "voice barge-in: off" in captured.out

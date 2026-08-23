@@ -197,6 +197,8 @@ def command_toggle(argument: str) -> int:
         print(f"speech: {speaking}    daemon: {running}    voice: {config.tts_voice}")
         autostart = "on" if _autostart_installed() else "off"
         print(f"autostart: {autostart}")
+        barge_in = "on" if config.voice_barge_in else "off"
+        print(f"voice barge-in: {barge_in}")
         if config.focus_cwd:
             print(f"focus: {config.focus_cwd}")
         if not _daemon_running(config):
@@ -328,8 +330,13 @@ def main(argv: list[str] | None = None) -> int:
         print("autostart removed" if remove_service() else "no autostart was installed")
         return 0
 
+    if command == "setup-echo-cancel":
+        from claudechat.cli.echocancel import command_setup
+
+        return command_setup()
+
     print(
-        "usage: claudechat [serve|on|off|toggle|status|focus|install|autostart]\n"
+        "usage: claudechat [serve|on|off|toggle|status|focus|install|autostart|setup-echo-cancel]\n"
         "  (no argument)  interactive voice session\n"
         "  serve          run the daemon in the foreground\n"
         "  on|off|toggle  speak Claude Code replies, or stop speaking them\n"
@@ -339,7 +346,8 @@ def main(argv: list[str] | None = None) -> int:
         "  daemon-start   start the engine without changing the speech setting\n"
         "  daemon-stop    stop the engine\n"
         "  install        register the Stop hook only (no autostart)\n"
-        "  autostart      also install and enable the systemd user service",
+        "  autostart      also install and enable the systemd user service\n"
+        "  setup-echo-cancel  set up PipeWire echo cancellation for voice barge-in",
         file=sys.stderr,
     )
     return 2

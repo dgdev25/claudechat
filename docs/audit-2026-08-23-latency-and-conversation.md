@@ -125,6 +125,16 @@ expected effect.
       ↳ Fixed: "Done." is spoken when an enabled announcement strips to nothing, and the
       rate-limited branch speaks "Still working." through the wired on_drop callback.
 
+## Backlog added after the audit
+
+- [ ] **[19] [P3] Feature** — Pluggable STT backends.
+      An opt-in `stt_backend` config choice: local Whisper (default — private, free),
+      Groq hosted Whisper (free tier, 2,000 requests/day, good for weak machines), and
+      Aqua Voice's Avalon API ($0.39/hr, best-in-class on AI/coding vocabulary,
+      OpenAI-SDK-compatible). Each labelled with what leaves the machine; the README's
+      privacy promise applies only to the default.
+      📍 `src/claudechat/speech/transcriber.py`, `src/claudechat/config.py`
+
 ## Housekeeping found on the way
 
 - [x] ~~**[17] [P3] `interactive_main` loads Kokoro twice.**~~ **COMPLETED 2026-08-23**
