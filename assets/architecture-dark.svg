@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 968 388" width="100%" role="img" aria-labelledby="architecture-dark-title architecture-dark-desc">
+  <title id="architecture-dark-title">How claudechat fits together</title>
+  <desc id="architecture-dark-desc">Two entry points reach one resident engine over a private Unix socket: a Claude Code hook that hands over finished replies, and a terminal client you talk to. The engine keeps the Whisper and Kokoro models in memory, sends prompts to Claude using your existing login, and plays speech through the speakers.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a9b0b7"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#00d7b6"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#07090b"/>
+  <path d="M 232,100 H 296 Q 304,100 304,108 V 148 Q 304,156 312,156 H 368" fill="none" stroke="#a9b0b7" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 232,284 H 296 Q 304,284 304,276 V 220 Q 304,212 312,212 H 368" fill="none" stroke="#a9b0b7" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 592,156 H 656 Q 664,156 664,148 V 108 Q 664,100 672,100 H 728" fill="none" stroke="#00d7b6" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <path d="M 592,212 H 656 Q 664,212 664,220 V 276 Q 664,284 672,284 H 728" fill="none" stroke="#a9b0b7" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <rect x="260" y="81" width="88" height="12" rx="2" fill="#07090b"/>
+  <text x="304" y="90" fill="#c8ccce" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REPLY TEXT</text>
+  <rect x="244" y="265" width="48" height="12" rx="2" fill="#07090b"/>
+  <text x="268" y="274" fill="#c8ccce" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VOICE</text>
+  <rect x="636" y="81" width="56" height="12" rx="2" fill="#07090b"/>
+  <text x="664" y="90" fill="#c8ccce" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PROMPT</text>
+  <rect x="676" y="265" width="48" height="12" rx="2" fill="#07090b"/>
+  <text x="700" y="274" fill="#c8ccce" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">AUDIO</text>
+
+  <rect x="40" y="64" width="192" height="72" rx="6" fill="#07090b"/>
+  <rect x="40" y="64" width="192" height="72" rx="6" fill="#101419" stroke="#f5f7f8" stroke-width="1"/>
+  <rect x="52" y="74" width="44" height="12" rx="2" fill="none" stroke="#f5f7f8" stroke-opacity="0.45" stroke-width="0.8"/>
+  <text x="74" y="83" fill="#f5f7f8" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HOOK</text>
+  <text x="136" y="108" fill="#f5f7f8" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Claude Code</text>
+  <text x="136" y="126" fill="#a9b0b7" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">speaks its replies</text>
+  <rect x="40" y="248" width="192" height="72" rx="6" fill="#07090b"/>
+  <rect x="40" y="248" width="192" height="72" rx="6" fill="#101419" stroke="#f5f7f8" stroke-width="1"/>
+  <rect x="52" y="258" width="36" height="12" rx="2" fill="none" stroke="#f5f7f8" stroke-opacity="0.45" stroke-width="0.8"/>
+  <text x="70" y="267" fill="#f5f7f8" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLI</text>
+  <text x="136" y="292" fill="#f5f7f8" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Terminal client</text>
+  <text x="136" y="310" fill="#a9b0b7" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">you talk, it answers</text>
+  <rect x="376" y="124" width="216" height="112" rx="6" fill="#07090b"/>
+  <rect x="376" y="124" width="216" height="112" rx="6" fill="rgba(0,215,182,0.12)" stroke="#00d7b6" stroke-width="1"/>
+  <rect x="388" y="134" width="60" height="12" rx="2" fill="none" stroke="#00d7b6" stroke-opacity="0.45" stroke-width="0.8"/>
+  <text x="418" y="143" fill="#00d7b6" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DAEMON</text>
+  <text x="484" y="168" fill="#f5f7f8" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Engine</text>
+  <text x="484" y="186" fill="#a9b0b7" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Whisper + Kokoro resident</text>
+  <text x="484" y="212" fill="#c8ccce" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">unix socket · 0600</text>
+  <rect x="736" y="64" width="192" height="72" rx="6" fill="#07090b"/>
+  <rect x="736" y="64" width="192" height="72" rx="6" fill="rgba(245,247,248,0.04)" stroke="rgba(245,247,248,0.30)" stroke-width="1" stroke-dasharray="4,3"/>
+  <rect x="748" y="74" width="60" height="12" rx="2" fill="none" stroke="rgba(245,247,248,0.30)" stroke-opacity="0.45" stroke-width="0.8"/>
+  <text x="778" y="83" fill="rgba(245,247,248,0.30)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">REMOTE</text>
+  <text x="832" y="108" fill="#f5f7f8" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Claude</text>
+  <text x="832" y="126" fill="#a9b0b7" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">your existing login</text>
+  <rect x="736" y="248" width="192" height="72" rx="6" fill="#07090b"/>
+  <rect x="736" y="248" width="192" height="72" rx="6" fill="#101419" stroke="#f5f7f8" stroke-width="1"/>
+  <rect x="748" y="258" width="52" height="12" rx="2" fill="none" stroke="#f5f7f8" stroke-opacity="0.45" stroke-width="0.8"/>
+  <text x="774" y="267" fill="#f5f7f8" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">AUDIO</text>
+  <text x="832" y="292" fill="#f5f7f8" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Speakers</text>
+  <text x="832" y="310" fill="#a9b0b7" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sentence by sentence</text>
+
+  <line x1="24" y1="340" x2="944" y2="340" stroke="rgba(245,247,248,0.14)" stroke-width="0.8"/>
+  <text x="24" y="358" fill="#a9b0b7" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+  <rect x="104" y="349" width="12" height="10" rx="2" fill="rgba(0,215,182,0.12)" stroke="#00d7b6" stroke-width="1"/>
+  <text x="124" y="358" fill="#a9b0b7" font-size="9" font-family="'Geist', sans-serif">one process, always warm</text>
+  <rect x="308" y="349" width="12" height="10" rx="2" fill="rgba(245,247,248,0.04)" stroke="rgba(245,247,248,0.30)" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="328" y="358" fill="#a9b0b7" font-size="9" font-family="'Geist', sans-serif">off your machine</text>
+  <text x="500" y="358" fill="#c8ccce" font-size="9" font-family="'Geist', sans-serif" font-style="italic">Either door reaches the same engine.</text>
+</svg>
