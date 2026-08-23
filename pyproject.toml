@@ -2,6 +2,7 @@
 name = "claudechat"
 version = "0.1.0"
 description = "Local CPU-only voice interface to Claude"
+license = "GPL-3.0-or-later"
 requires-python = "==3.13.*"
 dependencies = [
     "faster-whisper==1.2.1",
@@ -16,6 +17,11 @@ claudechat = "claudechat.cli.daemon:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
+
+[tool.uv]
+# The uv cache and this project often sit on different filesystems, where
+# hardlinking fails and uv warns on every run. Copying is the quiet default.
+link-mode = "copy"
 
 [build-system]
 requires = ["hatchling"]

@@ -178,10 +178,11 @@ Being straight with you about the parts that aren't finished:
   (`voice_replies = true`) all pass their tests, but nobody has held a real conversation
   through them yet. Interrupting by voice mid-reply is deliberately not built: the
   microphone hears the speakers, and that needs echo handling first.
-- **One dependency is GPL-licensed.** The speech synthesiser pulls in `phonemizer`, which
-  is GPL-3.0. Fine for personal use, since that licence applies when you distribute
-  software rather than when you run it — but it would need replacing before publishing
-  this as a permissively licensed project.
+- **The licence is GPL-3.0 because a dependency forces the choice.** The speech
+  synthesiser pulls in `phonemizer` (GPL-3.0), so the project ships as GPL-3.0. A
+  permissive relicense was attempted and reverted: the lightweight replacement
+  (`g2p_en`) audibly degraded the voice, and Kokoro's official G2P (`misaki`) drags in
+  torch. Until a good permissive phonemizer exists, GPL it is.
 
 ---
 
