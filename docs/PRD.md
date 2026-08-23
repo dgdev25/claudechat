@@ -140,8 +140,10 @@ transcribed a 3.67 s clip in 0.21 s; `claude -p` produced its first complete sen
 - No multi-user, multi-machine, or remote access; this runs for one user on one workstation.
 - No mobile or web-hosted deployment.
 - No speaker identification or voice cloning.
-- No replacement for Claude Code's own `/voice` dictation inside its TUI; the user disables
-  that separately to avoid a key conflict.
+- No replacement for Claude Code's own `/voice` dictation inside its TUI. The two are
+  complementary, not competing: `/voice` is input only and the hook is output only, so
+  **`/voice` stays enabled** when using the hook. Disabling it is required only when running
+  claudechat's own terminal client, which claims the spacebar for its push-to-talk.
 - No GUI settings application in phase 1; configuration is a file.
 - Phase 1 does not include the browser client or hands-free mode (REQ-027, REQ-028).
 
