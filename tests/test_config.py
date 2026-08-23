@@ -307,3 +307,46 @@ def test_voice_barge_in_from_config(tmp_path):
     p.write_text('[speech]\nvoice_barge_in = true\n')
     cfg = load_config(p)
     assert cfg.voice_barge_in is True
+
+
+def test_stt_vocabulary_defaults_to_empty(tmp_path):
+    cfg = load_config(tmp_path / "absent.toml")
+    assert cfg.stt_vocabulary == ""
+
+
+def test_stt_vocabulary_from_config(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[speech]\nstt_vocabulary = "ruflo, sf, nlp"\n')
+    cfg = load_config(p)
+    assert cfg.stt_vocabulary == "ruflo, sf, nlp"
+
+
+def test_stt_vocabulary_within_800_chars(tmp_path):
+    p = tmp_path / "c.toml"
+    terms = ", ".join(f"term{i}" for i in range(100))
+    p.write_text(f'[speech]\nstt_vocabulary = "{terms}"\n')
+    cfg = load_config(p)
+    assert cfg.stt_vocabulary == terms
+
+
+def test_rejects_stt_vocabulary_exceeding_800_chars(tmp_path):
+    p = tmp_path / "c.toml"
+    terms = ", ".join("x" * 10 for _ in range(100))
+    p.write_text(f'[speech]\nstt_vocabulary = "{terms}"\n')
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "stt_vocabulary" in str(e) and "800" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_rejects_control_characters_in_stt_vocabulary(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[speech]\nstt_vocabulary = "term\\u0001other"\n')
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "stt_vocabulary" in str(e)
+    else:
+        raise AssertionError("expected ValueError")

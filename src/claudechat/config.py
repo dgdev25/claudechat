@@ -41,6 +41,7 @@ class Config:
     capture_target: str = ""
     playback_target: str = ""
     focus_cwd: str = ""
+    stt_vocabulary: str = ""
     models_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "claudechat" / "models")
     runtime_dir: Path = field(default_factory=_runtime_dir)
 
@@ -87,6 +88,7 @@ def load_config(path: Path | None = None) -> Config:
         capture_target=str(speech.get("capture_target", Config.capture_target)),
         playback_target=str(speech.get("playback_target", Config.playback_target)),
         focus_cwd=str(hook.get("focus_cwd", Config.focus_cwd)),
+        stt_vocabulary=str(speech.get("stt_vocabulary", Config.stt_vocabulary)),
     )
 
     _check_clean("tts_voice", cfg.tts_voice)
@@ -96,6 +98,7 @@ def load_config(path: Path | None = None) -> Config:
     _check_clean("capture_target", cfg.capture_target)
     _check_clean("playback_target", cfg.playback_target)
     _check_clean("focus_cwd", cfg.focus_cwd)
+    _check_clean("stt_vocabulary", cfg.stt_vocabulary)
     if not 0.5 <= cfg.tts_speed <= 2.0:
         raise ValueError("tts_speed must be between 0.5 and 2.0")
     if not 1.0 <= cfg.max_recording_seconds <= 300.0:
@@ -112,4 +115,6 @@ def load_config(path: Path | None = None) -> Config:
         raise ValueError("vad_threshold must be between 0.1 and 0.95")
     if not 2.0 <= cfg.voice_reply_window_seconds <= 30.0:
         raise ValueError("voice_reply_window_seconds must be between 2.0 and 30.0")
+    if len(cfg.stt_vocabulary) > 800:
+        raise ValueError("stt_vocabulary must not exceed 800 characters")
     return cfg
