@@ -48,3 +48,42 @@ def test_player_process_survives_startup():
         assert player.is_playing(), "player exited during startup — bad arguments?"
     finally:
         player.cancel()
+
+
+def test_two_chunks_play_back_to_back_without_truncation():
+    """Verify gapless playback: two chunks queue without the first being cut off."""
+    player = Playback(sample_rate=16000)
+    # Two 0.5 s silence chunks (16 kHz, 16-bit mono: 2 bytes per sample)
+    chunk = b"\x00\x00" * 8000
+    try:
+        player.play(chunk)
+        player.play(chunk)
+        start = time.perf_counter()
+        player.wait(timeout=3.0)
+        elapsed = time.perf_counter() - start
+        assert not player.is_playing()
+        assert elapsed >= 0.9, f"playback too fast: {elapsed}s (expected ~1.0s for two 0.5s chunks)"
+    finally:
+        player.cancel()
+
+
+def test_play_after_cancel_works_again():
+    """Verify that playback resumes after a cancel."""
+    player = Playback(sample_rate=16000)
+    chunk = b"\x00\x00" * 16000  # one second of silence
+    try:
+        # Play a chunk, cancel, play another chunk.
+        player.play(chunk)
+        assert player.is_playing()
+        player.cancel()
+        assert not player.is_playing()
+
+        # Play again and verify it works.
+        player.play(chunk)
+        # Poll briefly to let the feeder thread start.
+        start = time.perf_counter()
+        while not player.is_playing() and time.perf_counter() - start < 0.5:
+            time.sleep(0.01)
+        assert player.is_playing(), "second play failed to start"
+    finally:
+        player.cancel()
