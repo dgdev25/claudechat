@@ -17,11 +17,10 @@ There is also no API key. claudechat talks to Claude through the Claude Code com
 tool you are already signed into, so it runs on the subscription you already pay for.
 
 > **Status: early, but genuinely usable.** The engine works end to end and has 187 tests.
-> The latency fixes that were pending are now applied — both Claude processes start
-> pre-warmed, summaries stream sentence-by-sentence, and playback is gapless — but the
-> new end-to-end number has not been re-measured yet, so the honest figure on record is
-> still the old 4.8 seconds. macOS support is written but has never been run on a Mac.
-> Both are covered plainly in [Where it's rough](#where-its-rough).
+> The latency work landed and was re-measured: a pre-warmed turn reaches first audio in
+> about 3.2 seconds (median of three runs), inside the 3.5-second target that the old
+> 4.8-second build missed. macOS support is written but has never been run on a Mac.
+> The remaining rough edges are covered plainly in [Where it's rough](#where-its-rough).
 
 ---
 
@@ -163,12 +162,12 @@ starts.
 
 Being straight with you about the parts that aren't finished:
 
-- **The new speed hasn't been measured yet.** The last honest end-to-end number is
-  4.8 seconds against a 3.5-second target. Since then the known fixes have landed —
-  both Claude processes start pre-warmed, summaries stream sentence-by-sentence on a
-  faster model, and the first chunk plays through a gapless queue — but until
-  `scripts/benchmark.py` is re-run on real hardware, 4.8 s stands as the figure of
-  record rather than being revised on hope.
+- **Interrupting costs one slow turn.** A pre-warmed turn reaches first audio in about
+  3.2 seconds, but barging in drops the Claude process, and the turn right after an
+  interrupt pays a cold start (about 4.9 seconds) unless you pause long enough for the
+  background re-warm to finish. The local speech layer also came in slower than its
+  0.8-second budget in re-measurement (transcription varied 0.35–0.81 s) and hasn't
+  been chased down yet.
 - **macOS is written but unverified.** Every dependency has Mac builds and the
   platform-specific pieces — audio, autostart, the socket permission check — all have Mac
   implementations with tests. But nobody has run it on a Mac yet, so treat it as untested.

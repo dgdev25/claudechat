@@ -74,17 +74,32 @@ process, so barge-in is followed by one cold start. Draining the abandoned turn
 instead, to keep the process, was measured at 29 s before the next turn could
 begin — far worse than the saving.
 
-### Audit remediation landed (2026-08-23, later the same day) — RE-MEASUREMENT PENDING
+### Audit remediation landed and re-measured (2026-08-23, later the same day) — PRIMARY TARGET MET
 
 All 18 findings from `docs/audit-2026-08-23-latency-and-conversation.md` are implemented
-(one sub-step deferred: voice barge-in during playback, which needs echo handling). The
-two levers named below as "neither yet applied" are now both applied, plus: pre-warmed
-processes on both runners, sentence-streamed summaries on a faster model, gapless queued
-playback, a synthesis worker, hands-free VAD turn-taking, Enter barge-in with
-conversation resume, and clipboard voice replies. The measured figures below are
-therefore stale in the app's favour, but the 4.84 s stands as the figure of record until
-`scripts/benchmark.py` (which now measures cold and warm turns) is re-run on real
-hardware. Test count at landing: 187.
+(one sub-step deferred: voice barge-in during playback, which needs echo handling).
+Landed: pre-warmed processes on both runners, sentence-streamed summaries on a faster
+model, gapless queued playback, a synthesis worker, hands-free VAD turn-taking, Enter
+barge-in with conversation resume, and clipboard voice replies. Test count: 187.
+
+Re-measured with `scripts/benchmark.py`, median of three runs, same machine:
+
+| Stage | Measured (median of 3) |
+|---|---|
+| Claude, warm process, to first speakable sentence | 1.85 s (1.73–1.91) |
+| Claude, cold process, to first speakable sentence | 3.56 s (3.21–4.85) |
+| Transcribe | 0.55 s (0.35–0.81) |
+| Synthesise first chunk (estimate at measured rtf 0.26) | ≈ 0.8 s |
+| **Total to first audio, pre-warmed turn** | **≈ 3.2 s — target ≤ 3.5 s, MET** |
+
+The daemon pre-warms at startup and re-warms after every turn, so real turns —
+including the first of a session — take the warm path. Two honest caveats:
+
+1. A barge-in recovery turn drops the process and pays the cold figure (≈ 4.9 s total)
+   once; the background re-warm hides it whenever the user pauses before speaking again.
+2. **The speech-layer target (≤ 0.8 s) is still missed**: STT wall time varied 0.35–0.81 s
+   across runs where the design measured 0.21 s. Unexplained; likely first-call warm-up
+   inside faster-whisper. Worth a dedicated measurement before optimising.
 
 ### Measured result at end of phase 1 (2026-08-23) — TWO TARGETS MISSED
 
