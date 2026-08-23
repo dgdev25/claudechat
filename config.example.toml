@@ -1,0 +1,16 @@
+# Copy to ~/.config/claudechat/config.toml and edit.
+# All 54 voices: run scripts/list_voices.py
+# claudechat configuration
+[speech]
+stt_model = "base.en"
+tts_voice = "bm_fable"     # British male. Others: bm_george, bm_daniel, bm_lewis,
+                           # bf_emma, bf_alice, bf_isabella, bf_lily, af_heart, am_michael
+tts_speed = 1.0
+
+[hook]
+spoken_summaries = false   # off by default; set true to hear Claude Code replies
+summary_threshold_chars = 400
+
+[limits]
+max_recording_seconds = 60.0
+hook_min_interval_seconds = 10.0
