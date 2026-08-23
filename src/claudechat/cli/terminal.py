@@ -88,13 +88,15 @@ class VoiceSession:
 class Engine:
     """Owns the long-lived pieces: models, socket service, and the token file."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, config_provider=None) -> None:
         self.config = config
         self.token = secrets.token_hex(16)
         self._synth: KokoroSynthesizer | None = None
         self._playback: Playback | None = None
         self.runner = ClaudeRunner(config, self.token)
-        self.announcer = Announcer(config, self.runner, lambda text: self.speak(text))
+        self.announcer = Announcer(
+            config_provider or config, self.runner, lambda text: self.speak(text)
+        )
         self.service = EngineService(config, on_announce=self.announcer.announce)
 
     def start(self) -> None:
@@ -104,6 +106,12 @@ class Engine:
         token_file.write_text(self.token)
         token_file.chmod(0o600)
         self.service.start()
+
+    def preload(self) -> None:
+        """Load the speech models now, so the first spoken reply is not delayed."""
+        if self._synth is None:
+            self._synth = KokoroSynthesizer(self.config)
+            self._playback = Playback(sample_rate=self._synth.sample_rate)
 
     def stop(self) -> None:
         self.service.stop()
@@ -121,7 +129,7 @@ class Engine:
             self._playback.play(pcm)
 
 
-def main() -> int:
+def interactive_main() -> int:
     config = load_config()
     engine = Engine(config)
     engine.start()
@@ -148,4 +156,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(interactive_main())

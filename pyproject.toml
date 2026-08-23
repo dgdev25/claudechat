@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-claudechat = "claudechat.cli.terminal:main"
+claudechat = "claudechat.cli.daemon:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

@@ -19,7 +19,23 @@ def redact_sensitive(text: str) -> str:
     return text
 
 class Announcer:
-    def __init__(self, config: Config, runner, speak: Callable[[str], None]) -> None: self._config, self._runner, self._speak = config, runner, speak
+    def __init__(
+        self,
+        config: Config | Callable[[], Config],
+        runner,
+        speak: Callable[[str], None],
+    ) -> None:
+        # A callable is re-read on every announcement, so toggling spoken
+        # summaries in the config file takes effect immediately without
+        # restarting the daemon. A plain Config stays fixed.
+        self._config_source = config
+        self._runner = runner
+        self._speak = speak
+
+    @property
+    def _config(self) -> Config:
+        source = self._config_source
+        return source() if callable(source) else source
     def announce(self, text: str) -> None:
         if not self._config.spoken_summaries: return
         stripper = SpeechStripper()
