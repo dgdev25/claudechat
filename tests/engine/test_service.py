@@ -66,3 +66,36 @@ def test_rejects_unknown_fields(tmp_path):
         assert seen == []
     finally:
         service.stop()
+
+
+def _send_without_reading(path, text: str) -> None:
+    """Reproduce exactly what the hook script does: send, shutdown, close.
+
+    It never reads the reply, so the server's sendall raises BrokenPipeError.
+    That previously escaped the serve loop and killed the thread, so only the
+    first announcement of a session ever worked.
+    """
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.connect(str(path))
+    client.sendall(json.dumps({"text": text}).encode())
+    client.shutdown(socket.SHUT_WR)
+    client.close()
+
+
+def test_survives_clients_that_close_without_reading(tmp_path):
+    import time
+
+    seen = []
+    config = replace(
+        Config(), runtime_dir=tmp_path / "run", hook_min_interval_seconds=0.0
+    )
+    service = EngineService(config, on_announce=seen.append)
+    path = service.start()
+    try:
+        _send_without_reading(path, "first")
+        time.sleep(0.4)
+        _send_without_reading(path, "second")
+        time.sleep(0.4)
+        assert seen == ["first", "second"], f"server stopped accepting: {seen}"
+    finally:
+        service.stop()

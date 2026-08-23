@@ -74,12 +74,29 @@ class EngineService:
                 return
             try:
                 self._handle(connection)
+            except Exception:
+                # One misbehaving client must never take the server down. The
+                # hook script sends and closes without reading the reply, so
+                # sendall raises BrokenPipeError — which previously killed this
+                # thread, silently disabling every announcement after the first.
+                pass
             finally:
-                connection.close()
+                try:
+                    connection.close()
+                except OSError:
+                    pass
+
+    @staticmethod
+    def _reply(connection: socket.socket, body: bytes) -> None:
+        """Best-effort reply: the client may already have closed."""
+        try:
+            connection.sendall(body)
+        except OSError:
+            pass
 
     def _handle(self, connection: socket.socket) -> None:
         if not self._peer_is_owner(connection):
-            connection.sendall(b'{"status":"error","reason":"peer rejected"}')
+            self._reply(connection, b'{"status":"error","reason":"peer rejected"}')
             return
         body = b""
         while len(body) <= _MAX_BODY_BYTES:
@@ -88,25 +105,25 @@ class EngineService:
                 break
             body += block
         if len(body) > _MAX_BODY_BYTES:
-            connection.sendall(b'{"status":"error","reason":"too large"}')
+            self._reply(connection, b'{"status":"error","reason":"too large"}')
             return
         try:
             payload = json.loads(body)
         except (json.JSONDecodeError, ValueError):
-            connection.sendall(b'{"status":"error","reason":"malformed"}')
+            self._reply(connection, b'{"status":"error","reason":"malformed"}')
             return
         if not isinstance(payload, dict) or set(payload) - _ALLOWED_FIELDS:
-            connection.sendall(b'{"status":"error","reason":"unexpected fields"}')
+            self._reply(connection, b'{"status":"error","reason":"unexpected fields"}')
             return
         text = payload.get("text")
         if not isinstance(text, str) or not text.strip():
-            connection.sendall(b'{"status":"error","reason":"no text"}')
+            self._reply(connection, b'{"status":"error","reason":"no text"}')
             return
         if not self._limiter.allow(time.monotonic()):
-            connection.sendall(b'{"status":"dropped","reason":"rate limited"}')
+            self._reply(connection, b'{"status":"dropped","reason":"rate limited"}')
             return
         self._on_announce(text)
-        connection.sendall(b'{"status":"ok"}')
+        self._reply(connection, b'{"status":"ok"}')
 
     @staticmethod
     def _peer_is_owner(connection: socket.socket) -> bool:
