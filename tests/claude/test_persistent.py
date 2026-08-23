@@ -101,3 +101,69 @@ def test_abandoned_turn_never_leaks_into_the_next_one():
             assert leaked not in reply, f"tail of the abandoned turn leaked: {reply!r}"
     finally:
         runner.close()
+
+
+def test_session_id_stored_and_resume_flag_appears():
+    """Verify that session_id from result events is stored and --resume appears in _argv()."""
+    runner = PersistentClaudeRunner(Config(), "token", VOICE_SYSTEM_PROMPT)
+    # No session_id initially.
+    assert "--resume" not in runner._argv()
+    # Set session_id directly.
+    runner._session_id = "test-session-123"
+    argv = runner._argv()
+    assert "--resume" in argv
+    idx = argv.index("--resume")
+    assert argv[idx + 1] == "test-session-123"
+
+
+def test_close_clears_session_id():
+    """Verify that close() clears the session_id so --resume does not appear."""
+    runner = PersistentClaudeRunner(Config(), "token", VOICE_SYSTEM_PROMPT)
+    runner._session_id = "test-session-456"
+    assert "--resume" in runner._argv()
+    runner.close()
+    assert "--resume" not in runner._argv()
+
+
+def test_warm_spawns_process_when_none_alive(monkeypatch):
+    """Verify that warm() spawns a process when none exists."""
+    from unittest.mock import MagicMock, PropertyMock
+
+    # Mock subprocess.Popen to avoid actually spawning a process.
+    fake_process = MagicMock()
+    fake_process.poll.return_value = None  # Simulate a live process.
+    fake_process.stdin = MagicMock()
+    fake_process.stdout = MagicMock()
+
+    popen_calls = []
+
+    def fake_popen(*args, **kwargs):
+        popen_calls.append((args, kwargs))
+        return fake_process
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+
+    runner = PersistentClaudeRunner(Config(), "token", VOICE_SYSTEM_PROMPT)
+    assert not popen_calls, "Popen should not be called until warm()"
+    runner.warm()
+    assert len(popen_calls) == 1, "warm() should spawn a process"
+
+
+def test_warm_does_nothing_after_close(monkeypatch):
+    """Verify that warm() spawns nothing after close() has been called."""
+    from unittest.mock import MagicMock
+
+    popen_calls = []
+
+    def fake_popen(*args, **kwargs):
+        popen_calls.append((args, kwargs))
+        fake_process = MagicMock()
+        fake_process.poll.return_value = None
+        return fake_process
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+
+    runner = PersistentClaudeRunner(Config(), "token", VOICE_SYSTEM_PROMPT)
+    runner.close()
+    runner.warm()
+    assert not popen_calls, "warm() should not spawn after close()"

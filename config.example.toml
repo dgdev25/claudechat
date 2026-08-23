@@ -6,10 +6,23 @@ stt_model = "base.en"
 tts_voice = "bm_fable"     # British male. Others: bm_george, bm_daniel, bm_lewis,
                            # bf_emma, bf_alice, bf_isabella, bf_lily, af_heart, am_michael
 tts_speed = 1.0
+stt_cpu_threads = 8        # CPU threads for transcription (1-64)
+first_chunk_min_chars = 10 # Minimum characters to release first chunk (1-200)
+first_chunk_max_words = 30 # Maximum words to release first chunk (5-200)
+hands_free = false         # Use VAD instead of Enter key to start/stop recording
+thinking_cue = true        # Play tone while Claude thinks
+vad_silence_ms = 700       # Silence duration to end recording (200-5000)
+vad_threshold = 0.5        # Speech detection threshold (0.1-0.95)
+
+[claude]
+claude_model = "sonnet"    # Model for conversation turns
+summary_model = "haiku"    # Model for hook summaries
 
 [hook]
 spoken_summaries = false   # off by default; set true to hear Claude Code replies
 summary_threshold_chars = 400
+voice_replies = false      # off by default; set true to listen for voice replies after summaries
+voice_reply_window_seconds = 6.0  # window to listen for voice reply (2.0-30.0)
 
 [limits]
 max_recording_seconds = 60.0
