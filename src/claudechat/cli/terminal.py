@@ -9,6 +9,8 @@ from claudechat.audio.playback import Playback
 from claudechat.claude.conversation import Conversation
 from claudechat.claude.runner import ClaudeRunner
 from claudechat.config import Config, load_config
+from claudechat.engine.announce import Announcer
+from claudechat.engine.service import EngineService
 from claudechat.speech.synthesizer import KokoroSynthesizer
 from claudechat.speech.transcriber import WhisperTranscriber
 from claudechat.text.chunk import SentenceChunker
@@ -83,16 +85,54 @@ class VoiceSession:
         return heard
 
 
+class Engine:
+    """Owns the long-lived pieces: models, socket service, and the token file."""
+
+    def __init__(self, config: Config) -> None:
+        self.config = config
+        self.token = secrets.token_hex(16)
+        self._synth: KokoroSynthesizer | None = None
+        self._playback: Playback | None = None
+        self.runner = ClaudeRunner(config, self.token)
+        self.announcer = Announcer(config, self.runner, lambda text: self.speak(text))
+        self.service = EngineService(config, on_announce=self.announcer.announce)
+
+    def start(self) -> None:
+        self.config.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.config.runtime_dir.chmod(0o700)
+        token_file = self.config.runtime_dir / "token"
+        token_file.write_text(self.token)
+        token_file.chmod(0o600)
+        self.service.start()
+
+    def stop(self) -> None:
+        self.service.stop()
+        if self._playback is not None:
+            self._playback.cancel()
+        self.runner.cancel()
+        (self.config.runtime_dir / "token").unlink(missing_ok=True)
+
+    def speak(self, text: str) -> None:
+        if self._synth is None:
+            self._synth = KokoroSynthesizer(self.config)
+            self._playback = Playback(sample_rate=self._synth.sample_rate)
+        pcm, _ = self._synth.synthesize(text)
+        if self._playback is not None:
+            self._playback.play(pcm)
+
+
 def main() -> int:
     config = load_config()
-    token = secrets.token_hex(16)
+    engine = Engine(config)
+    engine.start()
+    synthesizer = KokoroSynthesizer(config)
     session = VoiceSession(
         config,
         Capture(config),
         WhisperTranscriber(config),
-        KokoroSynthesizer(config),
-        Playback(sample_rate=24000),
-        Conversation(ClaudeRunner(config, token), SpeechStripper, SentenceChunker),
+        synthesizer,
+        Playback(sample_rate=synthesizer.sample_rate),
+        Conversation(engine.runner, SpeechStripper, SentenceChunker),
     )
     print("claudechat — toggle mode: press Enter to start recording, Enter again to stop. Ctrl-C to quit.")
     try:
@@ -102,6 +142,7 @@ def main() -> int:
     except (KeyboardInterrupt, EOFError):
         session.playback.cancel()
         session.capture.stop()
+        engine.stop()
         print("\nstopped.")
         return 0
 
