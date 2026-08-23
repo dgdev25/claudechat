@@ -14,6 +14,27 @@ UV="$(command -v uv || true)"
 KEY_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claudechat/"
 BASE="org.gnome.settings-daemon.plugins.media-keys"
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  cat <<'MAC'
+macOS has no scriptable global-hotkey API, so this helper cannot bind one for you.
+Pick whichever you already use:
+
+  skhd          brew install koekeishiya/formulae/skhd
+                then add to ~/.skhdrc:
+                    cmd + shift - v : claudechat toggle
+
+  Karabiner     map a key to a shell command via complex modifications
+
+  Automator     New > Quick Action > Run Shell Script:  claudechat toggle
+                then assign a shortcut in
+                System Settings > Keyboard > Keyboard Shortcuts > Services
+
+The toggle itself works identically: one press starts the engine and speech,
+the next stops both.
+MAC
+  exit 0
+fi
+
 command -v gsettings >/dev/null || { echo "gsettings not found — this helper is GNOME only" >&2; exit 1; }
 
 current="$(gsettings get ${BASE} custom-keybindings 2>/dev/null || echo "@as []")"

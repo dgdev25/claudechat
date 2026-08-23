@@ -15,6 +15,36 @@ _MAX_BODY_BYTES = 64 * 1024
 _ALLOWED_FIELDS = {"text"}
 
 
+def peer_uid_via_libc(connection: socket.socket) -> int | None:
+    """getpeereid(fd, &uid, &gid) — the macOS/BSD equivalent of SO_PEERCRED.
+
+    Returns None when the peer cannot be identified, which callers must treat
+    as "reject". glibc does not export this symbol at all, so the lookup raises
+    AttributeError there rather than failing at runtime — Linux uses
+    SO_PEERCRED and never reaches this function.
+    """
+    import ctypes
+    import ctypes.util
+
+    library = ctypes.util.find_library("c")
+    if library is None:
+        return None
+    try:
+        libc = ctypes.CDLL(library, use_errno=True)
+        getpeereid = libc.getpeereid
+    except (OSError, AttributeError):
+        return None
+
+    uid = ctypes.c_uint32()
+    gid = ctypes.c_uint32()
+    try:
+        if getpeereid(connection.fileno(), ctypes.byref(uid), ctypes.byref(gid)) != 0:
+            return None
+    except (OSError, ValueError):
+        return None
+    return uid.value
+
+
 class RateLimiter:
     """Drop-on-overload: announcements are never queued."""
 
@@ -127,9 +157,20 @@ class EngineService:
 
     @staticmethod
     def _peer_is_owner(connection: socket.socket) -> bool:
+        """Reject any connection not owned by this user.
+
+        Linux exposes SO_PEERCRED as a socket option. macOS does not — it has
+        getpeereid(3) in libc instead. Without the second branch this returned
+        False for every connection on macOS: it failed closed, which is the
+        right direction, but it made the daemon unusable there.
+        """
         try:
-            raw = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
-            _, uid, _ = struct.unpack("3i", raw)
-            return uid == os.getuid()
+            if hasattr(socket, "SO_PEERCRED"):
+                raw = connection.getsockopt(
+                    socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+                )
+                _, uid, _ = struct.unpack("3i", raw)
+                return uid == os.getuid()
+            return peer_uid_via_libc(connection) == os.getuid()
         except OSError:
             return False

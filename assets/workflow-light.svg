@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 968 400" width="100%" role="img" aria-labelledby="workflow-light-title workflow-light-desc">
+  <title id="workflow-light-title">How one spoken turn works in claudechat</title>
+  <desc id="workflow-light-desc">A voice turn: your speech is transcribed locally by Whisper, the text goes out to Claude through the Claude Code CLI, and the streamed reply is stripped of code, split into sentences, spoken by a local Kokoro model, and played through the speakers. Every step except the Claude call runs on your own machine.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+    <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#00d7b6"/></marker>
+  </defs>
+  <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+  <rect x="24" y="180" width="920" height="136" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+  <rect x="40" y="174" width="132" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="44" y="183" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">ON YOUR MACHINE</text>
+  <line x1="192" y1="252" x2="216" y2="252" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="560" y1="252" x2="584" y2="252" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="744" y1="252" x2="768" y2="252" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <path d="M 300,212 V 176 Q 300,168 308,168 H 432 Q 440,168 440,160 V 144" fill="none" stroke="#00d7b6" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+  <path d="M 528,136 V 204" fill="none" stroke="#00d7b6" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+  <rect x="330" y="146" width="52" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="356" y="155" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">YOUR WORDS</text>
+  <rect x="540" y="150" width="56" height="12" rx="2" fill="#f5f5f5"/>
+  <text x="568" y="159" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SENTENCES</text>
+
+  <rect x="40" y="212" width="152" height="80" rx="6" fill="#f5f5f5"/>
+  <rect x="40" y="212" width="152" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <rect x="52" y="222" width="16" height="12" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.40" stroke-width="0.8"/>
+  <text x="60" y="231" fill="#2d3142" fill-opacity="0.85" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">1</text>
+  <text x="116" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">You speak</text>
+  <text x="116" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">hold a key</text>
+  <rect x="224" y="212" width="152" height="80" rx="6" fill="#f5f5f5"/>
+  <rect x="224" y="212" width="152" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <rect x="236" y="222" width="16" height="12" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.40" stroke-width="0.8"/>
+  <text x="244" y="231" fill="#2d3142" fill-opacity="0.85" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">2</text>
+  <text x="300" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Whisper</text>
+  <text x="300" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">local speech to text</text>
+  <rect x="408" y="212" width="152" height="80" rx="6" fill="#f5f5f5"/>
+  <rect x="408" y="212" width="152" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <rect x="420" y="222" width="16" height="12" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.40" stroke-width="0.8"/>
+  <text x="428" y="231" fill="#2d3142" fill-opacity="0.85" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">3</text>
+  <text x="484" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Strip &amp; chunk</text>
+  <text x="484" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">no code read aloud</text>
+  <rect x="592" y="212" width="152" height="80" rx="6" fill="#f5f5f5"/>
+  <rect x="592" y="212" width="152" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <rect x="604" y="222" width="16" height="12" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.40" stroke-width="0.8"/>
+  <text x="612" y="231" fill="#2d3142" fill-opacity="0.85" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">4</text>
+  <text x="668" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kokoro</text>
+  <text x="668" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">local text to speech</text>
+  <rect x="776" y="212" width="152" height="80" rx="6" fill="#f5f5f5"/>
+  <rect x="776" y="212" width="152" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <rect x="788" y="222" width="16" height="12" rx="2" fill="none" stroke="#2d3142" stroke-opacity="0.40" stroke-width="0.8"/>
+  <text x="796" y="231" fill="#2d3142" fill-opacity="0.85" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">5</text>
+  <text x="852" y="258" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Speakers</text>
+  <text x="852" y="276" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">first words</text>
+
+  <rect x="384" y="64" width="200" height="72" rx="6" fill="#f5f5f5"/>
+  <rect x="384" y="64" width="200" height="72" rx="6" fill="rgba(0,215,182,0.08)" stroke="#00d7b6" stroke-width="1"/>
+  <rect x="396" y="74" width="36" height="12" rx="2" fill="none" stroke="#00d7b6" stroke-opacity="0.50" stroke-width="0.8"/>
+  <text x="414" y="83" fill="#00d7b6" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">REMOTE</text>
+  <text x="484" y="108" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Claude</text>
+  <text x="484" y="124" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">claude -p · your login</text>
+
+  <line x1="24" y1="344" x2="944" y2="344" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+  <text x="24" y="362" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+  <rect x="104" y="353" width="12" height="10" rx="2" fill="rgba(0,215,182,0.08)" stroke="#00d7b6" stroke-width="1"/>
+  <text x="124" y="362" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">leaves your machine</text>
+  <rect x="284" y="353" width="12" height="10" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+  <text x="304" y="362" fill="#4f5d75" font-size="9" font-family="'Geist', sans-serif">runs locally on the CPU</text>
+  <text x="500" y="362" fill="#7a8399" font-size="9" font-family="'Geist', sans-serif" font-style="italic">Speech starts while Claude is still writing.</text>
+</svg>

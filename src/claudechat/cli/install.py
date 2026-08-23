@@ -12,7 +12,7 @@ default for that.
 
 from __future__ import annotations
 
-import json
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -20,6 +20,16 @@ from pathlib import Path
 
 SETTINGS_PATH = Path.home() / ".claude" / "settings.json"
 UNIT_PATH = Path.home() / ".config" / "systemd" / "user" / "claudechat.service"
+PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / "com.claudechat.daemon.plist"
+LAUNCHD_LABEL = "com.claudechat.daemon"
+
+
+def is_macos() -> bool:
+    return sys.platform == "darwin"
+
+
+def service_path() -> Path:
+    return PLIST_PATH if is_macos() else UNIT_PATH
 
 UNIT_TEMPLATE = """[Unit]
 Description=claudechat speech daemon
@@ -38,9 +48,28 @@ WantedBy=default.target
 
 
 def install_service(project_root: Path) -> Path:
+    """Write the autostart definition for whichever service manager this OS has."""
     uv = shutil.which("uv")
     if uv is None:
-        raise SystemExit("uv not found on PATH; cannot write a service unit")
+        raise SystemExit("uv not found on PATH; cannot write a service definition")
+
+    if is_macos():
+        PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
+        logs = project_root / "logs"
+        logs.mkdir(parents=True, exist_ok=True)
+        PLIST_PATH.write_bytes(plistlib.dumps({
+            "Label": LAUNCHD_LABEL,
+            "ProgramArguments": [uv, "run", "--project", str(project_root),
+                                 "claudechat", "serve"],
+            "RunAtLoad": True,
+            "KeepAlive": {"SuccessfulExit": False},
+            "WorkingDirectory": str(project_root),
+            "StandardOutPath": str(logs / "daemon.log"),
+            "StandardErrorPath": str(logs / "daemon.log"),
+            "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
+        }))
+        return PLIST_PATH
+
     UNIT_PATH.parent.mkdir(parents=True, exist_ok=True)
     UNIT_PATH.write_text(
         UNIT_TEMPLATE.format(exec_start=f"{uv} run --project {project_root} claudechat serve")
@@ -58,13 +87,25 @@ def install_hook(project_root: Path) -> str:
 
 
 def remove_service() -> bool:
-    if not UNIT_PATH.exists():
+    path = service_path()
+    if not path.exists():
         return False
+    if is_macos():
+        subprocess.run(["launchctl", "unload", str(path)], capture_output=True, text=True)
+        path.unlink()
+        return True
     subprocess.run(["systemctl", "--user", "disable", "--now", "claudechat"],
                    capture_output=True, text=True)
-    UNIT_PATH.unlink()
+    path.unlink()
     subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True, text=True)
     return True
+
+
+def _enable_commands(path: Path) -> list[list[str]]:
+    if is_macos():
+        return [["launchctl", "unload", str(path)], ["launchctl", "load", "-w", str(path)]]
+    return [["systemctl", "--user", "daemon-reload"],
+            ["systemctl", "--user", "enable", "--now", "claudechat"]]
 
 
 def command_install(with_service: bool = False) -> int:
@@ -76,17 +117,17 @@ def command_install(with_service: bool = False) -> int:
 
     if with_service:
         unit = install_service(project_root)
-        print(f"wrote service unit     {unit}")
-        for args in (
-            ["systemctl", "--user", "daemon-reload"],
-            ["systemctl", "--user", "enable", "--now", "claudechat"],
-        ):
+        manager = "launchd" if is_macos() else "systemd"
+        print(f"wrote {manager} definition  {unit}")
+        for args in _enable_commands(unit):
             result = subprocess.run(args, capture_output=True, text=True)
-            if result.returncode != 0:
+            # launchctl unload of a not-yet-loaded job returns non-zero; that is
+            # expected on a first install, so only the final command must pass.
+            if result.returncode != 0 and args is _enable_commands(unit)[-1]:
                 print(f"  {' '.join(args)} failed: {result.stderr.strip()[:120]}", file=sys.stderr)
                 break
         else:
-            print("service enabled — the daemon now starts with your session")
+            print(f"service enabled via {manager} — the daemon now starts with your session")
     else:
         print("no autostart installed — start the daemon per session with ./start.sh")
         print("                        or add autostart later with ./start.sh --autostart")

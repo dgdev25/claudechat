@@ -71,13 +71,17 @@ def _daemon_running(config: Config) -> bool:
 
 
 def _autostart_installed() -> bool:
-    return (Path.home() / ".config" / "systemd" / "user" / "claudechat.service").exists()
+    from claudechat.cli.install import service_path
+
+    return service_path().exists()
 
 
 def _how_to_start() -> str:
     if _autostart_installed():
+        if sys.platform == "darwin":
+            return "start it with:  launchctl start com.claudechat.daemon"
         return "start it with:  systemctl --user start claudechat"
-    return "start it with:  ./start.sh        (this session only)"
+    return "start it with:  claudechat on     (starts the engine itself)"
 
 
 def _project_root() -> Path:
@@ -101,12 +105,26 @@ def start_daemon(timeout_seconds: float = 120.0) -> bool:
     log = (log_dir / "daemon.log").open("a")
     uv = shutil.which("uv")
     argv = (
-        ["setsid", "--fork", uv, "run", "--project", str(root), "claudechat", "serve"]
+        [uv, "run", "--project", str(root), "claudechat", "serve"]
         if uv
-        else ["setsid", "--fork", sys.executable, "-m", "claudechat.cli.daemon", "serve"]
+        else [sys.executable, "-m", "claudechat.cli.daemon", "serve"]
     )
+
+    # Detach so the daemon outlives this short-lived command. `setsid --fork` is
+    # util-linux and does not exist on macOS, and plain `setsid` does not fork
+    # when it is already a process-group leader — so do it in Python, which
+    # behaves the same everywhere. start_new_session=True calls setsid(2) in the
+    # child after fork, which is exactly what is wanted.
     with open(os.devnull) as devnull:
-        subprocess.Popen(argv, cwd=root, stdin=devnull, stdout=log, stderr=log)
+        subprocess.Popen(
+            argv,
+            cwd=root,
+            stdin=devnull,
+            stdout=log,
+            stderr=log,
+            start_new_session=True,
+            close_fds=True,
+        )
 
     deadline = time.monotonic() + timeout_seconds
     socket_path = config.runtime_dir / "engine.sock"
@@ -232,6 +250,17 @@ def main(argv: list[str] | None = None) -> int:
     command = argv[0]
     if command == "serve":
         return command_serve()
+    if command == "daemon-start":
+        # Start the engine without touching the speech setting. start.sh uses
+        # this so both paths share one portable detachment implementation.
+        if start_daemon():
+            print("engine ready")
+            return 0
+        print("engine failed to start — see logs/daemon.log", file=sys.stderr)
+        return 1
+    if command == "daemon-stop":
+        print("engine stopped" if stop_daemon() else "engine was not running")
+        return 0
     if command in {"on", "off", "toggle", "status"}:
         return command_toggle(command)
     if command in {"install", "autostart"}:
@@ -251,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
         "  serve          run the daemon in the foreground\n"
         "  on|off|toggle  speak Claude Code replies, or stop speaking them\n"
         "  status         show whether speech and the daemon are on\n"
+        "  daemon-start   start the engine without changing the speech setting\n"
+        "  daemon-stop    stop the engine\n"
         "  install        register the Stop hook only (no autostart)\n"
         "  autostart      also install and enable the systemd user service",
         file=sys.stderr,

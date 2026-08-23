@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-labelledby="banner-title banner-desc">
+  <title id="banner-title">claudechat — Claude, out loud, on your own machine</title>
+  <desc id="banner-desc">Title banner for claudechat, a local voice interface that speaks Claude's replies aloud and listens to you, running its speech models on your own CPU.</desc>
+  <defs>
+    <style>
+      /* ---- LIGHT (default) ---- */
+      :root {
+        --bg:      #f5f5f5;
+        --surface: #ffffff;
+        --border:  rgba(45,49,66,0.12);
+        --ink:     #2d3142;
+        --muted:   #4f5d75;
+        --soft:    #7a8399;
+        --accent:  #00d7b6;
+        --wave:    rgba(0,215,182,0.85);
+        --wavedim: rgba(45,49,66,0.16);
+      }
+      /* ---- DARK ---- */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg:      #07090b;
+          --surface: #101419;
+          --border:  rgba(245,247,248,0.14);
+          --ink:     #f5f7f8;
+          --muted:   #a9b0b7;
+          --soft:    #c8ccce;
+          --accent:  #00d7b6;
+          --wave:    rgba(0,215,182,0.9);
+          --wavedim: rgba(245,247,248,0.18);
+        }
+      }
+      .bg    { fill: var(--bg); }
+      .ink   { fill: var(--ink); }
+      .muted { fill: var(--muted); }
+      .soft  { fill: var(--soft); }
+      .acc   { fill: var(--accent); }
+      .rule  { stroke: var(--border); stroke-width: 1; }
+      .wave  { fill: var(--wave); }
+      .wavedim { fill: var(--wavedim); }
+      .chip  { fill: none; stroke: var(--border); stroke-width: 1; }
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1200" height="320"/>
+
+  <!-- waveform: speech leaving the machine, tallest at the centre -->
+  <g>
+    <rect class="wavedim" x="88"  y="150" width="6" height="20" rx="3"/>
+    <rect class="wavedim" x="104" y="140" width="6" height="40" rx="3"/>
+    <rect class="wave"    x="120" y="122" width="6" height="76" rx="3"/>
+    <rect class="wave"    x="136" y="104" width="6" height="112" rx="3"/>
+    <rect class="wave"    x="152" y="132" width="6" height="56" rx="3"/>
+    <rect class="wave"    x="168" y="112" width="6" height="96" rx="3"/>
+    <rect class="wavedim" x="184" y="144" width="6" height="32" rx="3"/>
+    <rect class="wavedim" x="200" y="154" width="6" height="12" rx="3"/>
+  </g>
+
+  <text class="ink" x="252" y="150" font-size="62" font-weight="700" letter-spacing="-0.02em">claudechat</text>
+  <text class="muted" x="256" y="192" font-size="21">Claude, out loud — on your own machine.</text>
+
+  <text class="soft mono" x="256" y="236" font-size="13" letter-spacing="0.04em">
+    speaks its replies&#160;&#160;·&#160;&#160;listens when you talk&#160;&#160;·&#160;&#160;speech never leaves your CPU
+  </text>
+
+  <!-- capability chips -->
+  <g>
+    <rect class="chip" x="256" y="258" width="118" height="26" rx="6"/>
+    <text class="soft mono" x="315" y="275" font-size="11" text-anchor="middle">no API key</text>
+
+    <rect class="chip" x="386" y="258" width="104" height="26" rx="6"/>
+    <text class="soft mono" x="438" y="275" font-size="11" text-anchor="middle">no GPU</text>
+
+    <rect class="chip" x="502" y="258" width="126" height="26" rx="6"/>
+    <text class="soft mono" x="565" y="275" font-size="11" text-anchor="middle">no cloud STT</text>
+
+    <rect class="chip" x="640" y="258" width="112" height="26" rx="6"/>
+    <text class="soft mono" x="696" y="275" font-size="11" text-anchor="middle">54 voices</text>
+  </g>
+
+  <line class="rule" x1="252" y1="168" x2="252" y2="168"/>
+  <line class="rule" x1="88" y1="300" x2="1112" y2="300"/>
+  <text class="soft mono" x="1112" y="292" font-size="11" text-anchor="end" letter-spacing="0.08em">LOCAL SPEECH · YOUR CLAUDE SUBSCRIPTION</text>
+</svg>

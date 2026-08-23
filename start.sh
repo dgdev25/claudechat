@@ -36,8 +36,25 @@ LOG_DIR="${PROJECT_ROOT}/logs"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-${HOME}/.cache/claudechat/run}/claudechat"
 SOCKET="${RUNTIME_DIR}/engine.sock"
 CONFIG="${HOME}/.config/claudechat/config.toml"
-UNIT="${HOME}/.config/systemd/user/claudechat.service"
 SETTINGS="${HOME}/.claude/settings.json"
+
+# ── Platform ─────────────────────────────────────────────────────────────────
+# Audio and the service manager are the only platform-specific parts; the
+# engine itself is identical on both.
+OS="$(uname -s)"
+if [[ "${OS}" == "Darwin" ]]; then
+  IS_MAC=true
+  UNIT="${HOME}/Library/LaunchAgents/com.claudechat.daemon.plist"
+  AUDIO_TOOLS=(play rec)
+  AUDIO_ALT=(ffplay ffmpeg)
+  AUDIO_INSTALL="brew install sox        (or: brew install ffmpeg)"
+else
+  IS_MAC=false
+  UNIT="${HOME}/.config/systemd/user/claudechat.service"
+  AUDIO_TOOLS=(pw-cat pw-record)
+  AUDIO_ALT=()
+  AUDIO_INSTALL="sudo apt install pipewire-bin   (Debian/Ubuntu)"
+fi
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 info()   { echo "  ${*}"; }
@@ -71,9 +88,13 @@ done
 daemon_pids() { pgrep -f "claudechat.cli.daemon|claudechat serve" 2>/dev/null || true; }
 
 stop_daemon() {
-  if [[ -f "${UNIT}" ]] && systemctl --user is-active --quiet claudechat 2>/dev/null; then
-    systemctl --user stop claudechat && ok "Stopped systemd service"
-    return
+  if [[ -f "${UNIT}" ]]; then
+    if [[ "${IS_MAC}" == true ]]; then
+      launchctl stop com.claudechat.daemon 2>/dev/null && ok "Stopped launchd job" && return
+    elif systemctl --user is-active --quiet claudechat 2>/dev/null; then
+      systemctl --user stop claudechat && ok "Stopped systemd service"
+      return
+    fi
   fi
   local pids; pids="$(daemon_pids)"
   if [[ -n "${pids}" ]]; then
@@ -121,12 +142,16 @@ if [[ "${DO_UNINSTALL}" == true ]]; then
   header "Removing claudechat from your environment"
   stop_daemon
   if [[ -f "${UNIT}" ]]; then
-    systemctl --user disable claudechat &>/dev/null || true
+    if [[ "${IS_MAC}" == true ]]; then
+      launchctl unload "${UNIT}" &>/dev/null || true
+    else
+      systemctl --user disable claudechat &>/dev/null || true
+    fi
     rm -f "${UNIT}"
-    systemctl --user daemon-reload &>/dev/null || true
-    ok "Removed systemd service"
+    [[ "${IS_MAC}" == false ]] && { systemctl --user daemon-reload &>/dev/null || true; }
+    ok "Removed autostart"
   else
-    info "No systemd service installed"
+    info "No autostart installed"
   fi
   if [[ -f "${SETTINGS}" ]]; then
     python3 - "${SETTINGS}" <<'PY'
@@ -202,16 +227,24 @@ fi
 ok "claude: $(claude --version 2>/dev/null | head -1)"
 
 MISSING_AUDIO=()
-command -v pw-cat &>/dev/null    || MISSING_AUDIO+=("pw-cat")
-command -v pw-record &>/dev/null || MISSING_AUDIO+=("pw-record")
-if [[ ${#MISSING_AUDIO[@]} -gt 0 ]]; then
-  die "Missing PipeWire tools: ${MISSING_AUDIO[*]}
-       Install with:  sudo apt install pipewire-audio-client-libraries pipewire-bin
-       (Debian/Ubuntu) — claudechat records and plays through PipeWire, not ALSA."
+for tool in "${AUDIO_TOOLS[@]}"; do
+  command -v "${tool}" &>/dev/null || MISSING_AUDIO+=("${tool}")
+done
+if [[ ${#MISSING_AUDIO[@]} -gt 0 ]] && [[ ${#AUDIO_ALT[@]} -gt 0 ]]; then
+  ALT_OK=true
+  for tool in "${AUDIO_ALT[@]}"; do
+    command -v "${tool}" &>/dev/null || ALT_OK=false
+  done
+  [[ "${ALT_OK}" == true ]] && MISSING_AUDIO=() && ok "Audio tools: ${AUDIO_ALT[*]} (fallback)"
 fi
-ok "PipeWire tools: pw-cat, pw-record"
+if [[ ${#MISSING_AUDIO[@]} -gt 0 ]]; then
+  die "Missing audio tools: ${MISSING_AUDIO[*]}
+       Install with:  ${AUDIO_INSTALL}
+       claudechat streams raw PCM, which needs a command-line audio tool."
+fi
+[[ ${#MISSING_AUDIO[@]} -eq 0 ]] && ok "Audio tools: ${AUDIO_TOOLS[*]}"
 
-if ! pgrep -x pipewire &>/dev/null; then
+if [[ "${IS_MAC}" == false ]] && ! pgrep -x pipewire &>/dev/null; then
   warn "pipewire does not appear to be running — audio will fail until it is"
 fi
 
@@ -314,9 +347,15 @@ fi
 header "5. Starting the daemon"
 
 if [[ -f "${UNIT}" ]]; then
-  systemctl --user start claudechat || die "systemctl --user start claudechat failed"
-  wait_for_socket "claudechat daemon" "journalctl --user -u claudechat"
-  ok "Daemon running under systemd"
+  if [[ "${IS_MAC}" == true ]]; then
+    launchctl start com.claudechat.daemon || die "launchctl start failed"
+    wait_for_socket "claudechat daemon" "${LOG_DIR}/daemon.log"
+    ok "Daemon running under launchd"
+  else
+    systemctl --user start claudechat || die "systemctl --user start claudechat failed"
+    wait_for_socket "claudechat daemon" "journalctl --user -u claudechat"
+    ok "Daemon running under systemd"
+  fi
 else
   stop_daemon >/dev/null 2>&1 || true
   info "Starting daemon (models load once, takes about 30s)..."
@@ -325,8 +364,12 @@ else
   # instead and the daemon stays a direct child. The script then blocks in
   # wait() at exit and anything piping start.sh hangs long after the summary
   # has printed. --fork reparents the daemon away so the script can exit.
-  (cd "${PROJECT_ROOT}" && setsid --fork uv run claudechat serve \
-     </dev/null >"${LOG_DIR}/daemon.log" 2>&1 &)
+  # `daemon-start` detaches in Python, which behaves the same on Linux and
+  # macOS. setsid --fork is util-linux and does not exist on macOS, and doing
+  # it with a bare & left the daemon a child of this script, so the script
+  # blocked in wait() at exit.
+  (cd "${PROJECT_ROOT}" && uv run claudechat daemon-start 2>&1 | grep -viE "warn") \
+    || die "Daemon failed to start — check ${LOG_DIR}/daemon.log"
   wait_for_socket "claudechat daemon" "${LOG_DIR}/daemon.log"
   [[ -n "$(daemon_pids)" ]] || die "Daemon exited immediately — check ${LOG_DIR}/daemon.log"
   ok "Daemon running (not installed as a service — use --install to make it permanent)"

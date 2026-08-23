@@ -13,3 +13,4 @@ models/
 *.rvf.lock
 ruvector.db
 :memory:*
+assets/preview.html
