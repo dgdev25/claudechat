@@ -14,9 +14,9 @@ class Playback:
         self._sample_rate = sample_rate
         self._process: subprocess.Popen[bytes] | None = None
         self._lock = threading.Lock()
-        self._binary = shutil.which("pw-play")
+        self._binary = shutil.which("pw-cat")
         if self._binary is None:
-            raise RuntimeError("pw-play not found; install pipewire-utils")
+            raise RuntimeError("pw-cat not found; install pipewire-utils")
 
     def play(self, pcm: bytes) -> None:
         if not pcm:
@@ -26,6 +26,8 @@ class Playback:
             self._process = subprocess.Popen(
                 [
                     self._binary,
+                    "--playback",
+                    "--raw",
                     "--format=s16",
                     f"--rate={self._sample_rate}",
                     "--channels=1",
