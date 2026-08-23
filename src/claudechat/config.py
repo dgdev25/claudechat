@@ -39,6 +39,7 @@ class Config:
     voice_reply_window_seconds: float = 6.0
     voice_barge_in: bool = False
     capture_target: str = ""
+    barge_capture_target: str = ""
     playback_target: str = ""
     focus_cwd: str = ""
     stt_vocabulary: str = ""
@@ -86,6 +87,7 @@ def load_config(path: Path | None = None) -> Config:
         voice_reply_window_seconds=float(hook.get("voice_reply_window_seconds", Config.voice_reply_window_seconds)),
         voice_barge_in=bool(speech.get("voice_barge_in", Config.voice_barge_in)),
         capture_target=str(speech.get("capture_target", Config.capture_target)),
+        barge_capture_target=str(speech.get("barge_capture_target", Config.barge_capture_target)),
         playback_target=str(speech.get("playback_target", Config.playback_target)),
         focus_cwd=str(hook.get("focus_cwd", Config.focus_cwd)),
         stt_vocabulary=str(speech.get("stt_vocabulary", Config.stt_vocabulary)),
@@ -96,6 +98,7 @@ def load_config(path: Path | None = None) -> Config:
     _check_clean("claude_model", cfg.claude_model)
     _check_clean("summary_model", cfg.summary_model)
     _check_clean("capture_target", cfg.capture_target)
+    _check_clean("barge_capture_target", cfg.barge_capture_target)
     _check_clean("playback_target", cfg.playback_target)
     _check_clean("focus_cwd", cfg.focus_cwd)
     _check_clean("stt_vocabulary", cfg.stt_vocabulary)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import queue
 import secrets
 import sys
@@ -60,7 +61,7 @@ class VoiceSession:
         self._wait_for_stop = wait_for_stop
         self._gate_factory = gate_factory or self._default_gate_factory
         self._enable_barge_in = enable_barge_in
-        self._barge_capture_factory = barge_capture_factory or (lambda: Capture(config))
+        self._barge_capture_factory = barge_capture_factory or self._default_barge_capture_factory
         self._barge_gate_factory = barge_gate_factory
         self.barged_in = False
 
@@ -89,6 +90,11 @@ class VoiceSession:
             threshold=self.config.vad_threshold,
             silence_ms=self.config.vad_silence_ms,
         )
+
+    def _default_barge_capture_factory(self) -> Capture:
+        barge_target = self.config.barge_capture_target or self.config.capture_target
+        barge_config = dataclasses.replace(self.config, capture_target=barge_target)
+        return Capture(barge_config)
 
     def _generate_earcon(self, duration_ms: int, freq: float) -> bytes:
         """Generate a sine wave tone with linear fade in/out.

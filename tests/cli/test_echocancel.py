@@ -118,7 +118,7 @@ def test_setup_writes_config_keys(monkeypatch, tmp_path):
     assert result == 0
     assert config_path.exists()
     data = tomllib.loads(config_path.read_text())
-    assert data["speech"]["capture_target"] == "claudechat_ec_source"
+    assert data["speech"]["barge_capture_target"] == "claudechat_ec_source"
     assert data["speech"]["playback_target"] == "claudechat_ec_sink"
     assert data["speech"]["voice_barge_in"] is True
 
@@ -148,7 +148,7 @@ def test_setup_preserves_existing_config_keys(monkeypatch, tmp_path):
     assert result == 0
     data = tomllib.loads(config_path.read_text())
     # New keys should be set
-    assert data["speech"]["capture_target"] == "claudechat_ec_source"
+    assert data["speech"]["barge_capture_target"] == "claudechat_ec_source"
     assert data["speech"]["playback_target"] == "claudechat_ec_sink"
     assert data["speech"]["voice_barge_in"] is True
     # Existing keys should be preserved
@@ -214,3 +214,37 @@ def test_setup_without_restart_skips_systemctl(monkeypatch, tmp_path, restart_va
         assert result == 0  # Should succeed anyway (just writes config)
     else:
         subprocess_run_mock.assert_called()
+
+
+def test_setup_migrates_old_capture_target(monkeypatch, tmp_path):
+    """Test that setup migrates capture_target = claudechat_ec_source to capture_target = empty."""
+    pw_conf_dir = tmp_path / ".config" / "pipewire" / "pipewire.conf.d"
+    config_path = tmp_path / "config.toml"
+    # Simulate an old setup with capture_target pointing to echo-cancelled source
+    config_path.write_text(
+        '[speech]\n'
+        'tts_voice = "bm_fable"\n'
+        'capture_target = "claudechat_ec_source"\n'
+        'playback_target = "claudechat_ec_sink"\n'
+        'voice_barge_in = true\n'
+    )
+
+    monkeypatch.setattr("claudechat.cli.echocancel.is_macos", lambda: False)
+    monkeypatch.setattr("claudechat.cli.echocancel.conf_path", lambda: pw_conf_dir / "99-claudechat-echo-cancel.conf")
+    monkeypatch.setattr("claudechat.cli.echocancel.DEFAULT_CONFIG_PATH", config_path)
+    monkeypatch.setattr("claudechat.cli.echocancel.glob.glob", lambda pattern: ["/usr/lib/x86_64-linux-gnu/pipewire-0.3/libpipewire-module-echo-cancel.so"])
+    monkeypatch.setattr("claudechat.cli.echocancel.subprocess.run", lambda *args, **kwargs: MagicMock(returncode=0))
+    monkeypatch.setattr("claudechat.cli.echocancel.subprocess.check_output", lambda *args, **kwargs: "claudechat_ec_source\nclaudechat_ec_sink\n")
+
+    result = command_setup(restart=True)
+
+    assert result == 0
+    data = tomllib.loads(config_path.read_text())
+    # Old capture_target should be cleared
+    assert data["speech"]["capture_target"] == ""
+    # New barge_capture_target should be set
+    assert data["speech"]["barge_capture_target"] == "claudechat_ec_source"
+    # Other settings should be preserved
+    assert data["speech"]["tts_voice"] == "bm_fable"
+    assert data["speech"]["playback_target"] == "claudechat_ec_sink"
+    assert data["speech"]["voice_barge_in"] is True

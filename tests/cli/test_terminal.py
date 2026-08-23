@@ -11,8 +11,9 @@ from claudechat.audio.vad import SpeechGate
 class FakeCapture:
     sample_rate = 16000
 
-    def __init__(self):
+    def __init__(self, config=None):
         self.started = False
+        self.config = config
 
     def start(self):
         self.started = True
@@ -519,3 +520,55 @@ def test_stale_enter_event_does_not_interrupt():
     # The stale event should have been drained and not cause an interrupt
     assert not session._interrupted.is_set()
     assert not playback.cancelled
+
+
+def test_barge_capture_factory_uses_barge_capture_target(monkeypatch):
+    """Test that default barge capture factory uses barge_capture_target when set."""
+    config = Config(barge_capture_target="custom_ec_source")
+    captured_configs = []
+
+    class TrackingFakeCapture(FakeCapture):
+        def __init__(self, cfg):
+            super().__init__(cfg)
+            captured_configs.append(cfg)
+
+    monkeypatch.setattr("claudechat.cli.terminal.Capture", TrackingFakeCapture)
+
+    # Create a session with the default barge_capture_factory
+    session = VoiceSession(
+        config, FakeCapture(), FakeTranscriber(), FakeSynth(),
+        FakePlayback(), FakeConversation(),
+        wait_for_stop=lambda: None,
+        enable_barge_in=True,
+    )
+
+    # Call the factory and check that the captured config has the right target
+    barge_capture = session._barge_capture_factory()
+    assert len(captured_configs) > 0
+    assert captured_configs[-1].capture_target == "custom_ec_source"
+
+
+def test_barge_capture_factory_falls_back_to_capture_target(monkeypatch):
+    """Test that barge capture factory falls back to capture_target when barge_capture_target is empty."""
+    config = Config(capture_target="fallback_source", barge_capture_target="")
+    captured_configs = []
+
+    class TrackingFakeCapture(FakeCapture):
+        def __init__(self, cfg):
+            super().__init__(cfg)
+            captured_configs.append(cfg)
+
+    monkeypatch.setattr("claudechat.cli.terminal.Capture", TrackingFakeCapture)
+
+    # Create a session with the default barge_capture_factory
+    session = VoiceSession(
+        config, FakeCapture(), FakeTranscriber(), FakeSynth(),
+        FakePlayback(), FakeConversation(),
+        wait_for_stop=lambda: None,
+        enable_barge_in=True,
+    )
+
+    # Call the factory and check that it falls back to capture_target
+    barge_capture = session._barge_capture_factory()
+    assert len(captured_configs) > 0
+    assert captured_configs[-1].capture_target == "fallback_source"

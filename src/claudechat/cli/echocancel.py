@@ -165,8 +165,26 @@ def command_setup(restart: bool = True) -> int:
             )
             return 1
 
+    # Migrate old setups: if capture_target is set to the echo-cancelled source,
+    # move it to barge_capture_target and clear capture_target (main recording
+    # uses raw microphone for better transcription).
+    cfg_path = DEFAULT_CONFIG_PATH
+    if cfg_path.exists():
+        lines = cfg_path.read_text().splitlines()
+        migrated = False
+        out: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("capture_target") and "claudechat_ec_source" in stripped:
+                out.append('capture_target = ""')
+                migrated = True
+            else:
+                out.append(line)
+        if migrated:
+            cfg_path.write_text("\n".join(out) + "\n")
+
     # Write config keys to the [speech] section
-    _set_key("speech", "capture_target", '"claudechat_ec_source"')
+    _set_key("speech", "barge_capture_target", '"claudechat_ec_source"')
     _set_key("speech", "playback_target", '"claudechat_ec_sink"')
     _set_key("speech", "voice_barge_in", "true")
 

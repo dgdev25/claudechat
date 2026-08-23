@@ -264,14 +264,16 @@ def test_rejects_control_characters_in_focus_cwd(tmp_path):
 def test_audio_target_defaults_empty(tmp_path):
     cfg = load_config(tmp_path / "absent.toml")
     assert cfg.capture_target == ""
+    assert cfg.barge_capture_target == ""
     assert cfg.playback_target == ""
 
 
 def test_audio_targets_from_config(tmp_path):
     p = tmp_path / "c.toml"
-    p.write_text('[speech]\ncapture_target = "claudechat_ec_source"\nplayback_target = "claudechat_ec_sink"\n')
+    p.write_text('[speech]\ncapture_target = "raw_mic"\nbarge_capture_target = "claudechat_ec_source"\nplayback_target = "claudechat_ec_sink"\n')
     cfg = load_config(p)
-    assert cfg.capture_target == "claudechat_ec_source"
+    assert cfg.capture_target == "raw_mic"
+    assert cfg.barge_capture_target == "claudechat_ec_source"
     assert cfg.playback_target == "claudechat_ec_sink"
 
 
@@ -282,6 +284,17 @@ def test_rejects_control_characters_in_capture_target(tmp_path):
         load_config(p)
     except ValueError as e:
         assert "capture_target" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_rejects_control_characters_in_barge_capture_target(tmp_path):
+    p = tmp_path / "c.toml"
+    p.write_text('[speech]\nbarge_capture_target = "claudechat\\u0001source"\n')
+    try:
+        load_config(p)
+    except ValueError as e:
+        assert "barge_capture_target" in str(e)
     else:
         raise AssertionError("expected ValueError")
 

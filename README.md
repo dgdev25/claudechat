@@ -125,8 +125,9 @@ from what the microphone hears, so the engine does not interrupt itself. One com
 claudechat setup-echo-cancel
 ```
 
-The installer runs this automatically on Linux. Enter also always interrupts, even if
-voice barge-in is off. Disable voice barge-in with `voice_barge_in = false` under `[speech]`.
+The installer runs this automatically on Linux. Only the interrupt listener uses the echo-cancelled
+microphone; your questions are recorded from the normal microphone at full quality. Enter also
+always interrupts, even if voice barge-in is off. Disable voice barge-in with `voice_barge_in = false` under `[speech]`.
 
 **Focus one project.** Running several Claude Code sessions in different tabs means every one
 of them speaks. Run this in a project directory:
@@ -213,7 +214,8 @@ take effect on the next reply. Settings marked **restart** require the engine to
 | `vad_silence_ms` | `700` | Silence duration to end recording (200–5000 ms). |
 | `vad_threshold` | `0.5` | Speech detection threshold (0.1–0.95). |
 | `voice_barge_in` | `false` | Interrupt reply if speech is detected while speaking. |
-| `capture_target` | `` | PipeWire source node name (e.g. `claudechat_ec_source`). Empty uses system default. **Restart** to change. |
+| `capture_target` | `` | Main recording PipeWire source. Leave empty — raw microphone transcribes best. **Restart** to change. |
+| `barge_capture_target` | `` | Voice barge-in listener PipeWire source (e.g. `claudechat_ec_source`). Empty falls back to `capture_target`. **Restart** to change. |
 | `playback_target` | `` | PipeWire sink node name (e.g. `claudechat_ec_sink`). Empty uses system default. **Restart** to change. |
 
 ### claude
