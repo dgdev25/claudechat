@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable
 
@@ -13,6 +14,9 @@ SUMMARY_SYSTEM_PROMPT = ("You condense an assistant reply so it can be read alou
     "Skip code, detail, and reasoning. No markdown, no lists, no URLs.")
 _MAX_SUMMARY_INPUT_CHARS = 8000
 _SECRET_PATTERNS = [re.compile(r"sk-[A-Za-z0-9_-]{16,}"), re.compile(r"gh[pousr]_[A-Za-z0-9]{16,}"), re.compile(r"\b[A-Fa-f0-9]{32,}\b"), re.compile(r"(?i)\b(api[_-]?key|password|secret|token)\s*[:=]\s*\S+")]
+
+_log = logging.getLogger("claudechat.announce")
+
 
 def redact_sensitive(text: str) -> str:
     for pattern in _SECRET_PATTERNS: text = pattern.sub("[redacted]", text)
@@ -37,10 +41,14 @@ class Announcer:
         source = self._config_source
         return source() if callable(source) else source
     def announce(self, text: str) -> None:
-        if not self._config.spoken_summaries: return
+        if not self._config.spoken_summaries:
+            _log.info("SILENT: speech is off (claudechat on to enable)")
+            return
         stripper = SpeechStripper()
         clean = redact_sensitive(strip_control_characters((stripper.feed(text + "\n") + " " + stripper.flush()).strip()))
-        if not clean: return
+        if not clean:
+            _log.info("SILENT: nothing speakable left after stripping")
+            return
         if len(clean) <= self._config.summary_threshold_chars: self._speak(clean); return
         self._speak(self._summarise(clean[:_MAX_SUMMARY_INPUT_CHARS]))
     def _summarise(self, clean: str) -> str:

@@ -14,3 +14,8 @@ claudechat daemon ready — voice bm_fable, speech off, socket /run/user/1000/cl
 claudechat daemon stopped
 claudechat daemon ready — voice bm_fable, speech off, socket /run/user/1000/claudechat/engine.sock
 claudechat daemon stopped
+claudechat daemon ready — voice bm_fable, speech on, socket /run/user/1000/claudechat/engine.sock
+claudechat daemon stopped
+claudechat daemon ready — voice bm_fable, speech on, socket /run/user/1000/claudechat/engine.sock
+08:56:10 claudechat.engine ACCEPTED 17 chars: Message number 1.
+08:56:13 claudechat.engine ACCEPTED 17 chars: Message number 2.

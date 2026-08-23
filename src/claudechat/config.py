@@ -24,7 +24,7 @@ class Config:
     spoken_summaries: bool = False
     max_recording_seconds: float = 60.0
     max_speech_seconds: float = 120.0
-    hook_min_interval_seconds: float = 10.0
+    hook_min_interval_seconds: float = 1.0
     debug_logging: bool = False
     models_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "claudechat" / "models")
     runtime_dir: Path = field(default_factory=_runtime_dir)

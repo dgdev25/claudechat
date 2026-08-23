@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import struct
@@ -10,6 +11,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from claudechat.config import Config
+
+_log = logging.getLogger("claudechat.engine")
 
 _MAX_BODY_BYTES = 64 * 1024
 _ALLOWED_FIELDS = {"text"}
@@ -46,7 +49,14 @@ def peer_uid_via_libc(connection: socket.socket) -> int | None:
 
 
 class RateLimiter:
-    """Drop-on-overload: announcements are never queued."""
+    """A loop breaker, not a conversation throttle.
+
+    This exists to stop a misfiring hook triggering summarise calls in a tight
+    loop and draining Claude quota. It is deliberately short: a person replying
+    a second after the last reply is having a conversation, not flooding you,
+    and dropping that reply makes the tool feel broken. The real protection
+    against runaway cost is the recursion guard on internal calls.
+    """
 
     def __init__(self, min_interval_seconds: float) -> None:
         self._interval, self._last = min_interval_seconds, None
@@ -150,8 +160,11 @@ class EngineService:
             self._reply(connection, b'{"status":"error","reason":"no text"}')
             return
         if not self._limiter.allow(time.monotonic()):
+            _log.info("DROPPED (rate limited, one per %.0fs): %.60s",
+                      self._config.hook_min_interval_seconds, text.replace("\n", " "))
             self._reply(connection, b'{"status":"dropped","reason":"rate limited"}')
             return
+        _log.info("ACCEPTED %d chars: %.60s", len(text), text.replace("\n", " "))
         self._on_announce(text)
         self._reply(connection, b'{"status":"ok"}')
 

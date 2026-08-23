@@ -207,7 +207,14 @@ def command_toggle(argument: str) -> int:
 
 def command_serve() -> int:
     """Run the engine until stopped. Models stay resident between replies."""
+    import logging
+
     from claudechat.cli.terminal import Engine
+
+    # Every announcement outcome is logged. Without this, a reply that is not
+    # spoken is indistinguishable from a broken engine.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s",
+                        datefmt="%H:%M:%S")
 
     engine = Engine(load_config(), config_provider=load_config)
     # Load the models BEFORE binding the socket. The socket appearing is what
